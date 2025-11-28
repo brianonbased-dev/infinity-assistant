@@ -6,7 +6,7 @@
  */
 
 import logger from '@/utils/logger';
-import { getErrorMessage } from '@/utils/errorHandling';
+import { getErrorMessage } from '@/utils/error-handling';
 
 export interface MasterPortalRequest {
   agentId: string;
