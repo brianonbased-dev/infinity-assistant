@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       needsOnboarding,
       onboarding: onboarding || null,
+      preferences: onboarding?.preferences || null,
       hasConversations: (conversationCount || 0) > 0,
     });
   } catch (error: unknown) {

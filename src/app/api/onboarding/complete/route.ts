@@ -1,7 +1,7 @@
 /**
  * POST /api/onboarding/complete
  *
- * Mark onboarding as complete
+ * Mark onboarding as complete and save user preferences
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,17 +14,26 @@ const supabase = createClient(
   process.env.UAA2_SUPABASE_SERVICE_KEY!
 );
 
+// User preferences collected during onboarding
+interface UserPreferences {
+  role: string;
+  experienceLevel: string;
+  primaryGoals: string[];
+  preferredMode: 'search' | 'assist' | 'build';
+  interests: string[];
+  communicationStyle: 'concise' | 'detailed' | 'conversational';
+}
+
 interface CompleteRequest {
   userId: string;
-  workspaceCreated?: boolean;
-  builderIntroduced?: boolean;
   stepsCompleted?: string[];
+  preferences?: UserPreferences;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: CompleteRequest = await request.json();
-    const { userId, workspaceCreated = false, builderIntroduced = false, stepsCompleted = [] } = body;
+    const { userId, stepsCompleted = [], preferences } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -40,17 +49,18 @@ export async function POST(request: NextRequest) {
       .eq('user_id', userId)
       .single();
 
+    const onboardingData = {
+      completed_at: new Date().toISOString(),
+      steps_completed: stepsCompleted,
+      preferences: preferences || null,
+      updated_at: new Date().toISOString(),
+    };
+
     if (existing) {
       // Update existing record
       const { data, error } = await supabase
         .from('assistant_onboarding')
-        .update({
-          completed_at: new Date().toISOString(),
-          workspace_created: workspaceCreated || existing.workspace_created,
-          builder_introduced: builderIntroduced || existing.builder_introduced,
-          steps_completed: stepsCompleted.length > 0 ? stepsCompleted : existing.steps_completed,
-          updated_at: new Date().toISOString(),
-        })
+        .update(onboardingData)
         .eq('user_id', userId)
         .select()
         .single();
@@ -62,6 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         onboarding: data,
+        preferences: preferences,
       });
     } else {
       // Create new record
@@ -69,10 +80,7 @@ export async function POST(request: NextRequest) {
         .from('assistant_onboarding')
         .insert({
           user_id: userId,
-          completed_at: new Date().toISOString(),
-          workspace_created: workspaceCreated,
-          builder_introduced: builderIntroduced,
-          steps_completed: stepsCompleted,
+          ...onboardingData,
         })
         .select()
         .single();
@@ -84,6 +92,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         onboarding: data,
+        preferences: preferences,
       });
     }
   } catch (error: unknown) {

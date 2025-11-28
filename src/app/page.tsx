@@ -12,7 +12,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { MessageCircle, Code, Search, Sparkles, X } from 'lucide-react';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
-import { AssistantOnboarding } from '@/components/AssistantOnboarding';
+import { AssistantOnboarding, UserPreferences } from '@/components/AssistantOnboarding';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -22,6 +22,7 @@ function InfinityAssistantContent() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [userId, setUserId] = useState<string>('');
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
 
   // Get or create user ID
   useEffect(() => {
@@ -45,7 +46,7 @@ function InfinityAssistantContent() {
     const userIdValue = getUserId();
     setUserId(userIdValue);
 
-    // Check if user needs onboarding
+    // Check if user needs onboarding and load existing preferences
     const checkOnboarding = async () => {
       try {
         const response = await fetch(
@@ -55,6 +56,9 @@ function InfinityAssistantContent() {
           const data = await response.json();
           if (data.needsOnboarding) {
             setShowOnboarding(true);
+          } else if (data.preferences) {
+            // Load existing preferences
+            setUserPreferences(data.preferences);
           }
         }
       } catch (error) {
@@ -101,7 +105,8 @@ function InfinityAssistantContent() {
     return (
       <AssistantOnboarding
         userId={userId}
-        onComplete={() => {
+        onComplete={(preferences) => {
+          setUserPreferences(preferences);
           setShowOnboarding(false);
           // If chat view was requested, show it after onboarding
           const view = searchParams.get('view');
@@ -167,7 +172,9 @@ function InfinityAssistantContent() {
 
         {/* Unified Search Bar */}
         <div className="flex-1 overflow-hidden">
-          <UnifiedSearchBar initialMode="assist" />
+          <UnifiedSearchBar
+            initialMode={userPreferences?.preferredMode || 'assist'}
+          />
         </div>
       </div>
     );

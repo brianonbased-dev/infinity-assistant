@@ -3,8 +3,8 @@
 /**
  * Assistant Onboarding Component
  *
- * Guided onboarding for InfinityAssistant.io users
- * Simplified version for standalone service
+ * Personalized onboarding for InfinityAssistant.io users
+ * Collects user preferences to customize the AI experience
  */
 
 import { useState } from 'react';
@@ -20,6 +20,16 @@ import {
   Code,
   Sparkles,
   Loader2,
+  Briefcase,
+  GraduationCap,
+  Rocket,
+  Lightbulb,
+  Wrench,
+  BookOpen,
+  Zap,
+  Brain,
+  Target,
+  Users,
 } from 'lucide-react';
 
 interface WizardStep {
@@ -29,9 +39,19 @@ interface WizardStep {
   component: React.ReactNode;
 }
 
+// User preferences collected during onboarding
+export interface UserPreferences {
+  role: string;
+  experienceLevel: string;
+  primaryGoals: string[];
+  preferredMode: 'search' | 'assist' | 'build';
+  interests: string[];
+  communicationStyle: 'concise' | 'detailed' | 'conversational';
+}
+
 interface AssistantOnboardingProps {
   userId: string;
-  onComplete: () => void;
+  onComplete: (preferences: UserPreferences) => void;
   onSkip: () => void;
 }
 
@@ -39,11 +59,108 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
 
+  // User preferences state
+  const [preferences, setPreferences] = useState<UserPreferences>({
+    role: '',
+    experienceLevel: '',
+    primaryGoals: [],
+    preferredMode: 'assist',
+    interests: [],
+    communicationStyle: 'conversational',
+  });
+
+  // Selection option component
+  const SelectionOption = ({
+    icon: Icon,
+    label,
+    description,
+    selected,
+    onClick,
+    color = 'purple'
+  }: {
+    icon: React.ElementType;
+    label: string;
+    description?: string;
+    selected: boolean;
+    onClick: () => void;
+    color?: string;
+  }) => {
+    const colorClasses: Record<string, { border: string; bg: string; icon: string }> = {
+      purple: { border: 'border-purple-500', bg: 'bg-purple-500/10', icon: 'text-purple-400' },
+      blue: { border: 'border-blue-500', bg: 'bg-blue-500/10', icon: 'text-blue-400' },
+      green: { border: 'border-green-500', bg: 'bg-green-500/10', icon: 'text-green-400' },
+      orange: { border: 'border-orange-500', bg: 'bg-orange-500/10', icon: 'text-orange-400' },
+    };
+    const colors = colorClasses[color] || colorClasses.purple;
+
+    return (
+      <button
+        onClick={onClick}
+        className={`p-4 rounded-lg border-2 transition-all text-left w-full ${
+          selected
+            ? `${colors.border} ${colors.bg}`
+            : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <Icon className={`w-6 h-6 ${selected ? colors.icon : 'text-gray-400'}`} />
+          <div>
+            <div className={`font-medium ${selected ? 'text-white' : 'text-gray-300'}`}>{label}</div>
+            {description && <div className="text-xs text-gray-500 mt-0.5">{description}</div>}
+          </div>
+          {selected && <Check className={`w-5 h-5 ml-auto ${colors.icon}`} />}
+        </div>
+      </button>
+    );
+  };
+
+  // Multi-select option component
+  const MultiSelectOption = ({
+    label,
+    selected,
+    onClick
+  }: {
+    label: string;
+    selected: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-full border transition-all text-sm ${
+        selected
+          ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+          : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+      }`}
+    >
+      {label}
+      {selected && <Check className="w-3 h-3 inline ml-1" />}
+    </button>
+  );
+
+  const toggleGoal = (goal: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      primaryGoals: prev.primaryGoals.includes(goal)
+        ? prev.primaryGoals.filter(g => g !== goal)
+        : [...prev.primaryGoals, goal]
+    }));
+  };
+
+  const toggleInterest = (interest: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      interests: prev.interests.includes(interest)
+        ? prev.interests.filter(i => i !== interest)
+        : [...prev.interests, interest]
+    }));
+  };
+
   const steps: WizardStep[] = [
+    // Step 1: Welcome
     {
       id: 'welcome',
       title: 'Welcome to Infinity Assistant',
-      description: 'Your AI-powered assistant for Search, Assist, and Build',
+      description: 'Let\'s personalize your experience',
       component: (
         <div className="space-y-6 text-center">
           <div className="flex justify-center mb-4">
@@ -55,148 +172,308 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
             Welcome to Infinity Assistant
           </h2>
           <p className="text-gray-300 max-w-md mx-auto">
-            Your intelligent AI assistant. Get help with searching knowledge, getting answers, and building applications.
+            Your intelligent AI assistant powered by graduated knowledge. Answer a few quick questions so we can personalize your experience.
           </p>
           <div className="grid grid-cols-3 gap-4 mt-8">
             <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <Search className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Search</div>
-              <div className="text-xs text-gray-500 mt-1">Knowledge Base</div>
+              <Brain className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+              <div className="text-sm font-medium text-gray-300">Smart</div>
+              <div className="text-xs text-gray-500 mt-1">Learns your style</div>
             </div>
             <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <MessageCircle className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Assist</div>
-              <div className="text-xs text-gray-500 mt-1">Get Help</div>
+              <Target className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+              <div className="text-sm font-medium text-gray-300">Focused</div>
+              <div className="text-xs text-gray-500 mt-1">Your goals matter</div>
             </div>
             <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <Code className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Build</div>
-              <div className="text-xs text-gray-500 mt-1">Create Apps</div>
+              <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+              <div className="text-sm font-medium text-gray-300">Fast</div>
+              <div className="text-xs text-gray-500 mt-1">Instant answers</div>
             </div>
           </div>
         </div>
       ),
     },
+    // Step 2: Role selection
     {
-      id: 'features',
-      title: 'What You Can Do',
-      description: 'Explore the three powerful modes',
+      id: 'role',
+      title: 'What describes you best?',
+      description: 'This helps us tailor responses to your context',
       component: (
-        <div className="space-y-4">
-          {/* Search Mode */}
-          <Card className="p-4 bg-gray-800 border-blue-500/20">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-                <Search className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-white mb-1">Search Mode</h3>
-                <p className="text-sm text-gray-400 mb-2">
-                  Search our extensive knowledge base for patterns, wisdom, and best practices.
-                </p>
-                <ul className="text-xs text-gray-500 space-y-1">
-                  <li>• Find development patterns</li>
-                  <li>• Discover wisdom and insights</li>
-                  <li>• Learn from gotchas</li>
-                </ul>
-              </div>
-            </div>
-          </Card>
-
-          {/* Assist Mode */}
-          <Card className="p-4 bg-gray-800 border-purple-500/20">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-purple-600 flex items-center justify-center flex-shrink-0">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-white mb-1">Assist Mode</h3>
-                <p className="text-sm text-gray-400 mb-2">
-                  Get help with questions, code explanations, and research.
-                </p>
-                <ul className="text-xs text-gray-500 space-y-1">
-                  <li>• Ask questions</li>
-                  <li>• Get code explanations</li>
-                  <li>• Research assistance</li>
-                </ul>
-              </div>
-            </div>
-          </Card>
-
-          {/* Build Mode */}
-          <Card className="p-4 bg-gray-800 border-green-500/20">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-green-600 flex items-center justify-center flex-shrink-0">
-                <Code className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-white mb-1">Build Mode</h3>
-                <p className="text-sm text-gray-400 mb-2">
-                  Get guidance on building applications.
-                </p>
-                <ul className="text-xs text-gray-500 space-y-1">
-                  <li>• Plan application architecture</li>
-                  <li>• Generate code snippets</li>
-                  <li>• Design database schemas</li>
-                </ul>
-              </div>
-            </div>
-          </Card>
+        <div className="space-y-3">
+          <SelectionOption
+            icon={Code}
+            label="Software Developer"
+            description="Building applications, writing code, debugging"
+            selected={preferences.role === 'developer'}
+            onClick={() => setPreferences(prev => ({ ...prev, role: 'developer' }))}
+            color="blue"
+          />
+          <SelectionOption
+            icon={Briefcase}
+            label="Product Manager / Business"
+            description="Planning features, strategy, requirements"
+            selected={preferences.role === 'product'}
+            onClick={() => setPreferences(prev => ({ ...prev, role: 'product' }))}
+            color="purple"
+          />
+          <SelectionOption
+            icon={GraduationCap}
+            label="Student / Learner"
+            description="Learning to code, studying concepts"
+            selected={preferences.role === 'student'}
+            onClick={() => setPreferences(prev => ({ ...prev, role: 'student' }))}
+            color="green"
+          />
+          <SelectionOption
+            icon={Rocket}
+            label="Entrepreneur / Founder"
+            description="Building a startup, wearing many hats"
+            selected={preferences.role === 'entrepreneur'}
+            onClick={() => setPreferences(prev => ({ ...prev, role: 'entrepreneur' }))}
+            color="orange"
+          />
+          <SelectionOption
+            icon={Users}
+            label="Other / Just Exploring"
+            description="Curious about what Infinity Assistant can do"
+            selected={preferences.role === 'other'}
+            onClick={() => setPreferences(prev => ({ ...prev, role: 'other' }))}
+          />
         </div>
       ),
     },
+    // Step 3: Experience level
     {
-      id: 'quickstart',
-      title: 'Quick Start Guide',
-      description: 'Try these commands to get started',
+      id: 'experience',
+      title: 'What\'s your experience level?',
+      description: 'We\'ll adjust explanations accordingly',
+      component: (
+        <div className="space-y-3">
+          <SelectionOption
+            icon={Lightbulb}
+            label="Beginner"
+            description="New to development, learning the basics"
+            selected={preferences.experienceLevel === 'beginner'}
+            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'beginner' }))}
+            color="green"
+          />
+          <SelectionOption
+            icon={Wrench}
+            label="Intermediate"
+            description="Comfortable with fundamentals, building projects"
+            selected={preferences.experienceLevel === 'intermediate'}
+            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'intermediate' }))}
+            color="blue"
+          />
+          <SelectionOption
+            icon={Rocket}
+            label="Advanced"
+            description="Deep expertise, architecting complex systems"
+            selected={preferences.experienceLevel === 'advanced'}
+            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'advanced' }))}
+            color="purple"
+          />
+        </div>
+      ),
+    },
+    // Step 4: Primary goals
+    {
+      id: 'goals',
+      title: 'What do you want to accomplish?',
+      description: 'Select all that apply',
       component: (
         <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-            <h4 className="font-semibold text-white mb-2">Command Shortcuts</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <code className="px-2 py-1 bg-gray-900 rounded text-blue-400">/search</code>
-                <span className="text-gray-400">Switch to Search mode</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="px-2 py-1 bg-gray-900 rounded text-purple-400">/assist</code>
-                <span className="text-gray-400">Switch to Assist mode</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="px-2 py-1 bg-gray-900 rounded text-green-400">/build</code>
-                <span className="text-gray-400">Switch to Build mode</span>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <MultiSelectOption
+              label="Learn new skills"
+              selected={preferences.primaryGoals.includes('learn')}
+              onClick={() => toggleGoal('learn')}
+            />
+            <MultiSelectOption
+              label="Build projects"
+              selected={preferences.primaryGoals.includes('build')}
+              onClick={() => toggleGoal('build')}
+            />
+            <MultiSelectOption
+              label="Debug issues"
+              selected={preferences.primaryGoals.includes('debug')}
+              onClick={() => toggleGoal('debug')}
+            />
+            <MultiSelectOption
+              label="Find best practices"
+              selected={preferences.primaryGoals.includes('best-practices')}
+              onClick={() => toggleGoal('best-practices')}
+            />
+            <MultiSelectOption
+              label="Code reviews"
+              selected={preferences.primaryGoals.includes('code-review')}
+              onClick={() => toggleGoal('code-review')}
+            />
+            <MultiSelectOption
+              label="Research topics"
+              selected={preferences.primaryGoals.includes('research')}
+              onClick={() => toggleGoal('research')}
+            />
+            <MultiSelectOption
+              label="Write documentation"
+              selected={preferences.primaryGoals.includes('documentation')}
+              onClick={() => toggleGoal('documentation')}
+            />
+            <MultiSelectOption
+              label="Plan architecture"
+              selected={preferences.primaryGoals.includes('architecture')}
+              onClick={() => toggleGoal('architecture')}
+            />
           </div>
-
-          <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-            <h4 className="font-semibold text-white mb-2">Example Queries</h4>
-            <div className="space-y-2 text-sm text-gray-400">
-              <div>
-                <strong className="text-white">Search:</strong> &quot;React best practices&quot;
-              </div>
-              <div>
-                <strong className="text-white">Assist:</strong> &quot;How do I use async/await?&quot;
-              </div>
-              <div>
-                <strong className="text-white">Build:</strong> &quot;Create a todo app with authentication&quot;
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-            <p className="text-sm text-blue-400">
-              <strong>Tip:</strong> Use the mode toggle buttons or command shortcuts to switch
-              between Search, Assist, and Build modes. Each mode is optimized for different tasks!
+          {preferences.primaryGoals.length > 0 && (
+            <p className="text-sm text-gray-400">
+              Selected: {preferences.primaryGoals.length} goal{preferences.primaryGoals.length !== 1 ? 's' : ''}
             </p>
-          </div>
+          )}
         </div>
       ),
     },
+    // Step 5: Interests/Tech stack
+    {
+      id: 'interests',
+      title: 'What technologies interest you?',
+      description: 'We\'ll prioritize relevant knowledge',
+      component: (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <MultiSelectOption
+              label="React / Next.js"
+              selected={preferences.interests.includes('react')}
+              onClick={() => toggleInterest('react')}
+            />
+            <MultiSelectOption
+              label="TypeScript"
+              selected={preferences.interests.includes('typescript')}
+              onClick={() => toggleInterest('typescript')}
+            />
+            <MultiSelectOption
+              label="Node.js"
+              selected={preferences.interests.includes('nodejs')}
+              onClick={() => toggleInterest('nodejs')}
+            />
+            <MultiSelectOption
+              label="Python"
+              selected={preferences.interests.includes('python')}
+              onClick={() => toggleInterest('python')}
+            />
+            <MultiSelectOption
+              label="AI / Machine Learning"
+              selected={preferences.interests.includes('ai-ml')}
+              onClick={() => toggleInterest('ai-ml')}
+            />
+            <MultiSelectOption
+              label="Databases / SQL"
+              selected={preferences.interests.includes('databases')}
+              onClick={() => toggleInterest('databases')}
+            />
+            <MultiSelectOption
+              label="Cloud / DevOps"
+              selected={preferences.interests.includes('cloud')}
+              onClick={() => toggleInterest('cloud')}
+            />
+            <MultiSelectOption
+              label="Mobile Development"
+              selected={preferences.interests.includes('mobile')}
+              onClick={() => toggleInterest('mobile')}
+            />
+            <MultiSelectOption
+              label="Web3 / Blockchain"
+              selected={preferences.interests.includes('web3')}
+              onClick={() => toggleInterest('web3')}
+            />
+            <MultiSelectOption
+              label="System Design"
+              selected={preferences.interests.includes('system-design')}
+              onClick={() => toggleInterest('system-design')}
+            />
+          </div>
+          {preferences.interests.length > 0 && (
+            <p className="text-sm text-gray-400">
+              Selected: {preferences.interests.length} interest{preferences.interests.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    // Step 6: Communication style
+    {
+      id: 'style',
+      title: 'How should I communicate?',
+      description: 'Choose your preferred response style',
+      component: (
+        <div className="space-y-3">
+          <SelectionOption
+            icon={Zap}
+            label="Concise"
+            description="Short, direct answers. Get to the point quickly."
+            selected={preferences.communicationStyle === 'concise'}
+            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'concise' }))}
+            color="blue"
+          />
+          <SelectionOption
+            icon={BookOpen}
+            label="Detailed"
+            description="Thorough explanations with examples and context."
+            selected={preferences.communicationStyle === 'detailed'}
+            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'detailed' }))}
+            color="purple"
+          />
+          <SelectionOption
+            icon={MessageCircle}
+            label="Conversational"
+            description="Friendly, natural dialogue. Like chatting with a colleague."
+            selected={preferences.communicationStyle === 'conversational'}
+            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'conversational' }))}
+            color="green"
+          />
+        </div>
+      ),
+    },
+    // Step 7: Preferred mode
+    {
+      id: 'mode',
+      title: 'Which mode will you use most?',
+      description: 'We\'ll set this as your default',
+      component: (
+        <div className="space-y-3">
+          <SelectionOption
+            icon={Search}
+            label="Search Mode"
+            description="Find patterns, wisdom, and best practices in our knowledge base"
+            selected={preferences.preferredMode === 'search'}
+            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'search' }))}
+            color="blue"
+          />
+          <SelectionOption
+            icon={MessageCircle}
+            label="Assist Mode"
+            description="Ask questions, get explanations, and research assistance"
+            selected={preferences.preferredMode === 'assist'}
+            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'assist' }))}
+            color="purple"
+          />
+          <SelectionOption
+            icon={Code}
+            label="Build Mode"
+            description="Get guidance on architecture, code generation, and implementation"
+            selected={preferences.preferredMode === 'build'}
+            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'build' }))}
+            color="green"
+          />
+        </div>
+      ),
+    },
+    // Step 8: Complete
     {
       id: 'complete',
       title: "You're All Set!",
-      description: 'Start using Infinity Assistant',
+      description: 'Your personalized experience is ready',
       component: (
         <div className="text-center space-y-6">
           <div className="flex justify-center">
@@ -204,15 +481,29 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
               <Check className="w-10 h-10 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white">Welcome to Infinity Assistant!</h2>
-          <p className="text-gray-400 max-w-md mx-auto">
-            You&apos;re ready to start using all features!
-          </p>
-          <div className="flex flex-col gap-3 mt-8 max-w-sm mx-auto">
-            <p className="text-xs text-gray-500">
-              Free tier includes 20 queries per day. Upgrade to Pro for unlimited access.
+          <h2 className="text-2xl font-bold text-white">Perfect! I&apos;m ready to help.</h2>
+          <div className="text-left max-w-md mx-auto bg-gray-800 rounded-lg p-4 space-y-2">
+            <p className="text-sm text-gray-300">
+              <span className="text-purple-400">Based on your preferences:</span>
             </p>
+            <ul className="text-sm text-gray-400 space-y-1">
+              {preferences.role && (
+                <li>• I&apos;ll tailor responses for a <span className="text-white">{preferences.role}</span></li>
+              )}
+              {preferences.experienceLevel && (
+                <li>• Explanations will be <span className="text-white">{preferences.experienceLevel}</span> level</li>
+              )}
+              {preferences.communicationStyle && (
+                <li>• I&apos;ll keep responses <span className="text-white">{preferences.communicationStyle}</span></li>
+              )}
+              {preferences.interests.length > 0 && (
+                <li>• Focusing on: <span className="text-white">{preferences.interests.slice(0, 3).join(', ')}{preferences.interests.length > 3 ? '...' : ''}</span></li>
+              )}
+            </ul>
           </div>
+          <p className="text-xs text-gray-500">
+            Free tier includes 20 queries per day. You can change preferences anytime in settings.
+          </p>
         </div>
       ),
     },
@@ -251,14 +542,15 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          stepsCompleted: ['welcome', 'features', 'quickstart', 'complete'],
+          stepsCompleted: steps.map(s => s.id),
+          preferences,
         }),
       });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
     }
     setIsCompleting(false);
-    onComplete();
+    onComplete(preferences);
   };
 
   const currentStepData = steps[currentStep];
