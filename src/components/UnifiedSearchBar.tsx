@@ -306,27 +306,21 @@ export default function UnifiedSearchBar({
     setShowSuggestions(false);
 
     try {
-      // Use search API for search mode, chat API for assist/build
-      const apiEndpoint = mode === 'search' ? '/api/search' : '/api/chat';
+      // All modes go through /api/chat for full research experience
+      // Search mode now includes: web search (Brave) + knowledge base + LLM synthesis
+      const apiEndpoint = '/api/chat';
 
       // Generate preferences context for personalization
       const preferencesContext = generatePreferencesPrompt(userPreferences || null);
 
-      const requestBody =
-        mode === 'search'
-          ? {
-              query: userMessage.content,
-              type: 'all' as const,
-              limit: 20,
-            }
-          : {
-              message: userMessage.content,
-              conversationId,
-              mode,
-              // Include preferences for AI personalization
-              userContext: preferencesContext || undefined,
-              preferences: userPreferences || undefined,
-            };
+      const requestBody = {
+        message: userMessage.content,
+        conversationId,
+        mode,
+        // Include preferences for AI personalization
+        userContext: preferencesContext || undefined,
+        preferences: userPreferences || undefined,
+      };
 
       const response = await fetch(apiEndpoint, {
         method: 'POST',
@@ -350,79 +344,32 @@ export default function UnifiedSearchBar({
 
       const data = await response.json();
 
-      // Handle search mode response
-      if (mode === 'search' && data.success) {
-        // Format search results as message
-        const searchResults = data.results;
-        const totalResults = data.counts.total;
+      // All modes now use unified /api/chat response format
+      // Search mode includes: web search (Brave) + knowledge base + LLM synthesis
 
-        let formattedContent = `**Search Results for "${userMessage.content}"**\n\n`;
-        formattedContent += `Found **${totalResults}** results across knowledge base.\n\n`;
+      // Update conversation ID if new
+      if (!conversationId && data.conversationId) {
+        setConversationId(data.conversationId);
+      }
 
-        if (searchResults.patterns.length > 0) {
-          formattedContent += `### Patterns (${searchResults.patterns.length})\n\n`;
-          searchResults.patterns.slice(0, 5).forEach((pattern: { name: string; domain: string; description: string; score: number }, index: number) => {
-            formattedContent += `${index + 1}. **${pattern.name}** (${pattern.domain})\n`;
-            formattedContent += `   ${pattern.description.substring(0, 150)}${pattern.description.length > 150 ? '...' : ''}\n`;
-            formattedContent += `   *Score: ${(pattern.score * 100).toFixed(1)}%*\n\n`;
-          });
-        }
+      // Update rate limit
+      if (data.rateLimit) {
+        setRateLimit(data.rateLimit);
+      }
 
-        if (searchResults.wisdom.length > 0) {
-          formattedContent += `### Wisdom (${searchResults.wisdom.length})\n\n`;
-          searchResults.wisdom.slice(0, 5).forEach((wisdom: { title: string; content: string; source: string; score: number }, index: number) => {
-            formattedContent += `${index + 1}. **${wisdom.title}**\n`;
-            formattedContent += `   ${wisdom.content.substring(0, 150)}${wisdom.content.length > 150 ? '...' : ''}\n`;
-            formattedContent += `   *Source: ${wisdom.source} | Score: ${(wisdom.score * 100).toFixed(1)}%*\n\n`;
-          });
-        }
-
-        if (searchResults.gotchas.length > 0) {
-          formattedContent += `### Gotchas (${searchResults.gotchas.length})\n\n`;
-          searchResults.gotchas.slice(0, 5).forEach((gotcha: { title: string; content: string; source: string; score: number }, index: number) => {
-            formattedContent += `${index + 1}. **${gotcha.title}**\n`;
-            formattedContent += `   ${gotcha.content.substring(0, 150)}${gotcha.content.length > 150 ? '...' : ''}\n`;
-            formattedContent += `   *Source: ${gotcha.source} | Score: ${(gotcha.score * 100).toFixed(1)}%*\n\n`;
-          });
-        }
-
-        if (totalResults === 0) {
-          formattedContent += `No results found for "${userMessage.content}".\n\n`;
-          formattedContent += `Try:\n- Using different keywords\n- Checking spelling\n- Using more general terms\n- Switching to Assist mode for help`;
-        }
-
-        const assistantMessage: Message = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: formattedContent,
-          timestamp: new Date().toISOString(),
-          mode,
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-      } else if (mode === 'search' && !data.success) {
-        // Search failed
+      // Handle response - unified format for all modes
+      if (data.success === false) {
+        // Error response
         const errorMsg: Message = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
-          content: `**Search Error**: ${data.error || 'Failed to search knowledge base'}\n\nPlease try again or switch to Assist mode.`,
+          content: `**Error**: ${data.error || 'Request failed'}\n\nPlease try again or rephrase your query.`,
           timestamp: new Date().toISOString(),
           mode,
         };
         setMessages((prev) => [...prev, errorMsg]);
       } else {
-        // Handle assist/build mode response
-        // Update conversation ID if new
-        if (!conversationId && data.conversationId) {
-          setConversationId(data.conversationId);
-        }
-
-        // Update rate limit
-        if (data.rateLimit) {
-          setRateLimit(data.rateLimit);
-        }
-
-        // Add assistant response
+        // Success response - works for all modes (search, assist, build)
         const assistantMessage: Message = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
@@ -498,7 +445,7 @@ export default function UnifiedSearchBar({
       icon: Search,
       label: 'Search',
       color: 'blue',
-      description: 'Find information in knowledge base',
+      description: 'Search web & knowledge base',
     },
     assist: {
       icon: MessageCircle,

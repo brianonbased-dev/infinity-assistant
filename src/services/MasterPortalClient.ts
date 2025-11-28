@@ -49,7 +49,8 @@ export class MasterPortalClient {
           message,
           conversationId: options.conversationId,
           userId: options.userId,
-          mode: options.mode === 'limited' ? 'assist' : options.mode,
+          // Pass through the actual mode (search/assist/build) - don't downgrade
+          mode: options.mode && options.mode !== 'limited' ? options.mode : 'assist',
         }),
       });
 

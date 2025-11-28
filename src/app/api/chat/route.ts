@@ -246,7 +246,8 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       const result = await masterPortal.processCustomerQuery(enhancedMessage, {
         conversationId: activeConversationId,
         userId,
-        mode: 'limited',
+        // Pass through the actual mode (search/assist/build) for proper handling
+        mode: mode || 'assist',
         limitedCapabilities: context.allowedCapabilities,
       });
 
