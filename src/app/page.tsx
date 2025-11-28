@@ -9,10 +9,12 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { MessageCircle, Code, Search, Sparkles, X } from 'lucide-react';
+import { MessageCircle, Code, Search, Sparkles, X, Settings } from 'lucide-react';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
 import { AssistantOnboarding, UserPreferences } from '@/components/AssistantOnboarding';
+import { SettingsModal } from '@/components/SettingsModal';
+import { useLocalPreferences } from '@/hooks/useLocalPreferences';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -20,9 +22,31 @@ function InfinityAssistantContent() {
   const router = useRouter();
   const [showChat, setShowChat] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [userId, setUserId] = useState<string>('');
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+
+  // Use local-first preferences
+  const {
+    preferences: localPreferences,
+    isLoading: preferencesLoading,
+    hasCompletedOnboarding: hasLocalOnboarding,
+    savePreferences,
+    updatePreferences,
+    syncEnabled,
+    setSyncEnabled,
+    syncToDatabase,
+  } = useLocalPreferences();
+
+  // Combined preferences state (local takes precedence)
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
+
+  // Sync local preferences to state
+  useEffect(() => {
+    if (localPreferences) {
+      setUserPreferences(localPreferences);
+    }
+  }, [localPreferences]);
 
   // Get or create user ID
   useEffect(() => {
@@ -46,9 +70,20 @@ function InfinityAssistantContent() {
     const userIdValue = getUserId();
     setUserId(userIdValue);
 
-    // Check if user needs onboarding and load existing preferences
+    // Local-first onboarding check
+    // Only show onboarding if no local preferences exist
     const checkOnboarding = async () => {
       try {
+        // Wait for local preferences to load first
+        if (preferencesLoading) return;
+
+        // If user has local preferences, skip onboarding
+        if (hasLocalOnboarding) {
+          setCheckingOnboarding(false);
+          return;
+        }
+
+        // Check database for existing preferences (fallback)
         const response = await fetch(
           `/api/onboarding/check?userId=${encodeURIComponent(userIdValue)}`
         );
@@ -57,8 +92,8 @@ function InfinityAssistantContent() {
           if (data.needsOnboarding) {
             setShowOnboarding(true);
           } else if (data.preferences) {
-            // Load existing preferences
-            setUserPreferences(data.preferences);
+            // Load database preferences to local storage
+            savePreferences(data.preferences);
           }
         }
       } catch (error) {
@@ -69,7 +104,7 @@ function InfinityAssistantContent() {
     };
 
     checkOnboarding();
-  }, []);
+  }, [preferencesLoading, hasLocalOnboarding, savePreferences]);
 
   useEffect(() => {
     setMounted(true);
@@ -90,7 +125,7 @@ function InfinityAssistantContent() {
     router.push('/', { scroll: false });
   };
 
-  if (!mounted || checkingOnboarding) {
+  if (!mounted || checkingOnboarding || preferencesLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black flex items-center justify-center">
         <div className="animate-pulse">
@@ -106,8 +141,18 @@ function InfinityAssistantContent() {
       <AssistantOnboarding
         userId={userId}
         onComplete={(preferences) => {
+          // Save to local storage first (local-first)
+          savePreferences(preferences);
           setUserPreferences(preferences);
           setShowOnboarding(false);
+
+          // Optionally sync to database if enabled
+          if (syncEnabled) {
+            syncToDatabase(userId).catch((err) =>
+              logger.error('[InfinityAssistantPage] Failed to sync preferences:', err)
+            );
+          }
+
           // If chat view was requested, show it after onboarding
           const view = searchParams.get('view');
           if (view === 'chat') {
@@ -162,6 +207,13 @@ function InfinityAssistantContent() {
                 >
                   InfinityAssistant.io
                 </a>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 text-gray-400 hover:text-purple-400 transition-colors"
+                  title="Settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
                 <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
                   Sign In
                 </button>
@@ -170,12 +222,33 @@ function InfinityAssistantContent() {
           </div>
         </header>
 
-        {/* Unified Search Bar */}
+        {/* Unified Search Bar with Preferences */}
         <div className="flex-1 overflow-hidden">
           <UnifiedSearchBar
             initialMode={userPreferences?.preferredMode || 'assist'}
+            userPreferences={userPreferences}
           />
         </div>
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <SettingsModal
+            preferences={userPreferences}
+            onSave={(prefs) => {
+              savePreferences(prefs);
+              setUserPreferences(prefs);
+              setShowSettings(false);
+            }}
+            onClose={() => setShowSettings(false)}
+            syncEnabled={syncEnabled}
+            onSyncChange={(enabled) => {
+              setSyncEnabled(enabled);
+              if (enabled && userPreferences && userId) {
+                syncToDatabase(userId);
+              }
+            }}
+          />
+        )}
       </div>
     );
   }

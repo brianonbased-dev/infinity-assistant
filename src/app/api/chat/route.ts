@@ -19,12 +19,23 @@ import { getUserService } from '@/services/UserService';
 import logger from '@/utils/logger';
 import { getErrorMessage } from '@/utils/error-handling';
 
+interface UserPreferences {
+  role?: string;
+  experienceLevel?: string;
+  primaryGoals?: string[];
+  preferredMode?: 'search' | 'assist' | 'build';
+  interests?: string[];
+  communicationStyle?: 'concise' | 'detailed' | 'conversational';
+}
+
 interface ChatRequest {
   message: string;
   conversationId?: string;
   userId?: string;
   userTier?: UserTier;
   mode?: 'search' | 'assist' | 'build';
+  userContext?: string;
+  preferences?: UserPreferences;
 }
 
 interface ChatResponse {
@@ -80,7 +91,7 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     const body: ChatRequest = await request.json();
-    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode } = body;
+    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode, userContext, preferences } = body;
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -155,19 +166,69 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     let tokensUsed = 0;
 
     try {
-      // Enhance message based on mode
+      // Enhance message based on mode and user preferences
       let enhancedMessage = filteredRequest.message;
       let systemContext = '';
 
+      // Build user context from preferences
+      let personalizedContext = '';
+      if (userContext) {
+        personalizedContext = userContext;
+      } else if (preferences) {
+        // Generate personalized context from preferences
+        const contextParts: string[] = [];
+
+        if (preferences.role) {
+          const roleDescriptions: Record<string, string> = {
+            developer: 'a software developer',
+            designer: 'a designer',
+            product_manager: 'a product manager',
+            data_analyst: 'a data analyst',
+            student: 'a student learning technology',
+            entrepreneur: 'an entrepreneur',
+            researcher: 'a researcher',
+            other: 'a professional',
+          };
+          contextParts.push(`The user is ${roleDescriptions[preferences.role] || preferences.role}.`);
+        }
+
+        if (preferences.experienceLevel) {
+          const expDescriptions: Record<string, string> = {
+            beginner: 'They are a beginner, so explain concepts clearly and avoid jargon.',
+            intermediate: 'They have intermediate experience, so balance detail with efficiency.',
+            advanced: 'They are advanced, so you can be technical and concise.',
+            expert: 'They are an expert, so be direct and skip basic explanations.',
+          };
+          contextParts.push(expDescriptions[preferences.experienceLevel] || '');
+        }
+
+        if (preferences.communicationStyle) {
+          const styleDescriptions: Record<string, string> = {
+            concise: 'Keep responses brief and to the point. Use bullet points when possible.',
+            detailed: 'Provide comprehensive explanations with examples and context.',
+            conversational: 'Be friendly and conversational while remaining helpful.',
+          };
+          contextParts.push(styleDescriptions[preferences.communicationStyle] || '');
+        }
+
+        if (preferences.interests && preferences.interests.length > 0) {
+          contextParts.push(`Their interests include: ${preferences.interests.join(', ')}.`);
+        }
+
+        if (contextParts.length > 0) {
+          personalizedContext = `\n\n[User Context: ${contextParts.join(' ')}]`;
+        }
+      }
+
       if (mode === 'search') {
         systemContext = 'You are in SEARCH mode. Focus on finding and presenting relevant information from the knowledge base.';
-        enhancedMessage = `[SEARCH MODE] User query: "${filteredRequest.message}"\n\nPlease search the knowledge base and provide relevant patterns, wisdom, and best practices.`;
+        enhancedMessage = `[SEARCH MODE] User query: "${filteredRequest.message}"\n\nPlease search the knowledge base and provide relevant patterns, wisdom, and best practices.${personalizedContext}`;
       } else if (mode === 'build') {
         systemContext = 'You are in BUILD mode. Help users create applications, generate code, and design architectures.';
-        enhancedMessage = `[BUILD MODE] User wants to build: "${filteredRequest.message}"\n\nProvide guidance on architecture, code structure, and implementation approach.`;
+        enhancedMessage = `[BUILD MODE] User wants to build: "${filteredRequest.message}"\n\nProvide guidance on architecture, code structure, and implementation approach.${personalizedContext}`;
       } else {
         systemContext = 'You are in ASSIST mode. Provide helpful, conversational assistance.';
-        enhancedMessage = filteredRequest.message;
+        enhancedMessage = `${filteredRequest.message}${personalizedContext}`;
       }
 
       if (combinedSignal.aborted) {

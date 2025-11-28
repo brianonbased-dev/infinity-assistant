@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { generatePreferencesPrompt, UserPreferences } from '@/hooks/useLocalPreferences';
 
 type SearchMode = 'search' | 'assist' | 'build';
 
@@ -49,12 +50,14 @@ interface UnifiedSearchBarProps {
   initialMode?: SearchMode;
   initialConversationId?: string;
   onModeChange?: (mode: SearchMode) => void;
+  userPreferences?: UserPreferences | null;
 }
 
 export default function UnifiedSearchBar({
   initialMode = 'assist',
   initialConversationId,
   onModeChange,
+  userPreferences,
 }: UnifiedSearchBarProps) {
   const [mode, setMode] = useState<SearchMode>(initialMode);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -87,16 +90,40 @@ export default function UnifiedSearchBar({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Add welcome message on mount
+  // Add welcome message on mount - personalized based on preferences
   useEffect(() => {
     if (messages.length === 0) {
+      // Generate personalized greeting
+      const userName = userPreferences?.role
+        ? {
+            developer: 'fellow developer',
+            designer: 'creative designer',
+            product_manager: 'product leader',
+            data_analyst: 'data expert',
+            student: 'eager learner',
+            entrepreneur: 'innovator',
+            researcher: 'curious researcher',
+            other: 'friend',
+          }[userPreferences.role] || 'friend'
+        : 'friend';
+
+      const styleHint = userPreferences?.communicationStyle
+        ? {
+            concise: "I'll keep my responses brief and actionable.",
+            detailed: "I'll provide comprehensive explanations with examples.",
+            conversational: "Let's have a friendly chat about whatever you need.",
+          }[userPreferences.communicationStyle]
+        : '';
+
+      const interestHint =
+        userPreferences?.interests && userPreferences.interests.length > 0
+          ? `\n\nI see you're interested in **${userPreferences.interests.slice(0, 3).join(', ')}** - feel free to ask about those topics!`
+          : '';
+
       const welcomeMessages: Record<SearchMode, string> = {
-        search:
-          'Hello! I am Infinity Agent. Use **Search** mode to find information in our knowledge base.\n\nTry searching for:\n- Patterns and best practices\n- Wisdom and insights\n- Code examples\n- Solutions to problems\n\nHow can I help you search?',
-        assist:
-          'Hello! I am Infinity Agent. Use **Assist** mode for questions, code explanations, and research.\n\nI can help with:\n- Answering questions\n- Explaining code\n- Research assistance\n- Problem solving\n\nHow can I assist you today?',
-        build:
-          'Hello! I am Infinity Agent. Use **Build** mode to get guidance on building applications.\n\nI can help you:\n- Plan your application architecture\n- Generate code snippets\n- Design database schemas\n- Provide best practices\n\nWhat would you like to build?',
+        search: `Hello, ${userName}! I am Infinity Agent. Use **Search** mode to find information in our knowledge base.\n\nTry searching for:\n- Patterns and best practices\n- Wisdom and insights\n- Code examples\n- Solutions to problems${interestHint}\n\nHow can I help you search?`,
+        assist: `Hello, ${userName}! I am Infinity Agent. ${styleHint}\n\nI can help with:\n- Answering questions\n- Explaining code\n- Research assistance\n- Problem solving${interestHint}\n\nHow can I assist you today?`,
+        build: `Hello, ${userName}! I am Infinity Agent. Use **Build** mode to get guidance on building applications.\n\nI can help you:\n- Plan your application architecture\n- Generate code snippets\n- Design database schemas\n- Provide best practices${interestHint}\n\nWhat would you like to build?`,
       };
 
       setMessages([
@@ -109,7 +136,7 @@ export default function UnifiedSearchBar({
         },
       ]);
     }
-  }, [messages.length, mode]);
+  }, [messages.length, mode, userPreferences]);
 
   // Handle mode change
   const handleModeChange = useCallback(
@@ -281,6 +308,10 @@ export default function UnifiedSearchBar({
     try {
       // Use search API for search mode, chat API for assist/build
       const apiEndpoint = mode === 'search' ? '/api/search' : '/api/chat';
+
+      // Generate preferences context for personalization
+      const preferencesContext = generatePreferencesPrompt(userPreferences || null);
+
       const requestBody =
         mode === 'search'
           ? {
@@ -292,6 +323,9 @@ export default function UnifiedSearchBar({
               message: userMessage.content,
               conversationId,
               mode,
+              // Include preferences for AI personalization
+              userContext: preferencesContext || undefined,
+              preferences: userPreferences || undefined,
             };
 
       const response = await fetch(apiEndpoint, {
