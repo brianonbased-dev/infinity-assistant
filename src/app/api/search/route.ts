@@ -274,7 +274,7 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
       {
         success: true,
         suggestions: [],
-        query: query?.trim() || '',
+        query: '',
         error: 'Failed to load suggestions',
       },
       { status: 200 }
