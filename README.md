@@ -1,0 +1,166 @@
+# InfinityAssistant.io Service
+
+**Standalone public-facing AI assistant service**
+
+This service provides the public API for InfinityAssistant.io, with all agent operations orchestrated through the uaa2-service Master Portal.
+
+---
+
+## 🎯 Architecture
+
+```
+InfinityAssistant Service (Public)
+    │
+    │ API Calls
+    │
+    ▼
+uaa2-service Master Portal (Orchestrator)
+    │
+    │ Routes to
+    │
+    ▼
+Service Pools (Horizontal Scaling)
+```
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+npm install
+```
+
+### Environment Variables
+
+Create `.env.local`:
+
+```env
+# Database
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+UAA2_SUPABASE_SERVICE_KEY=your_service_role_key
+
+# Master Portal (uaa2-service)
+UAA2_SERVICE_URL=http://localhost:3000
+UAA2_SERVICE_API_KEY=your_internal_api_key
+
+# Server
+PORT=3002
+NODE_ENV=development
+LOG_LEVEL=info
+```
+
+### Development
+
+```bash
+npm run dev
+```
+
+Service runs on `http://localhost:3002`
+
+---
+
+## 📋 API Endpoints
+
+### Chat
+- `POST /api/chat` - Send message to assistant
+- `GET /api/chat` - Get conversation history
+
+### Search
+- `POST /api/search` - Advanced knowledge base search
+- `GET /api/search` - Search suggestions (autocomplete)
+
+### Onboarding
+- `GET /api/onboarding/check` - Check if user needs onboarding
+- `POST /api/onboarding/complete` - Mark onboarding as complete
+- `POST /api/onboarding/skip` - Mark onboarding as skipped
+
+---
+
+## 🔗 Master Portal Integration
+
+All agent operations go through the Master Portal API:
+
+```typescript
+import { getMasterPortalClient } from '@/services/MasterPortalClient';
+
+const client = getMasterPortalClient();
+
+// Process customer query
+const result = await client.processCustomerQuery(message, {
+  conversationId,
+  userId,
+  mode: 'limited',
+});
+
+// Search knowledge base
+const results = await client.searchKnowledge(query, {
+  type: 'all',
+  limit: 20,
+});
+```
+
+---
+
+## 🏗️ Project Structure
+
+```
+infinityassistant-service/
+├── src/
+│   ├── app/
+│   │   └── api/
+│   │       ├── chat/          # Chat API
+│   │       ├── search/        # Search API
+│   │       └── onboarding/    # Onboarding API
+│   ├── services/
+│   │   ├── MasterPortalClient.ts  # Master Portal API client
+│   │   └── UserService.ts         # User management
+│   ├── lib/
+│   │   └── capability-limiter.ts  # Capability restrictions
+│   ├── types/
+│   │   └── agent-capabilities.ts  # Type definitions
+│   └── utils/
+│       ├── logger.ts              # Logging
+│       └── error-handling.ts      # Error handling
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+---
+
+## 🔐 Security
+
+- **Public API** - Isolated from internal services
+- **Rate Limiting** - Tier-based limits (free/paid/master)
+- **Capability Restrictions** - Limited mode only
+- **Authentication** - Optional (anonymous users supported)
+
+---
+
+## 📊 Features
+
+- ✅ Public-facing chat API
+- ✅ Knowledge base search
+- ✅ User onboarding
+- ✅ Rate limiting
+- ✅ Usage tracking
+- ✅ Master Portal orchestration
+- ✅ Horizontal scaling support
+
+---
+
+## 🔄 Migration from uaa2-service
+
+This service was extracted from `uaa2-service/src/app/api/assistant/*` to:
+- Enable independent scaling
+- Improve security isolation
+- Simplify deployment
+- Enable Master Portal orchestration
+
+---
+
+**Status**: 🚀 **Ready for Development**  
+**Version**: 1.0.0
+
