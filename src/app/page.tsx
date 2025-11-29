@@ -288,13 +288,29 @@ function InfinityAssistantContent() {
           <h2 className="text-5xl md:text-6xl font-bold mb-6">
             Infinity Assistant:{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-              Search, Assist, Build
+              Research, Assist, Build
             </span>
           </h2>
           <p className="text-xl text-gray-300 mb-8">
-            Your AI assistant for searching knowledge, getting help, and building solutions. Powered
-            by InfinityAssistant.io - your intelligent companion for everything.
+            Your AI-powered research assistant with deep knowledge synthesis. Conduct multi-source
+            research, get intelligent help, and build solutions with best practices built-in.
           </p>
+
+          {/* Capabilities Badge */}
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full">
+              <Search className="w-4 h-4 text-blue-400" />
+              <span className="text-blue-400 text-sm font-medium">Deep Research</span>
+            </div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full">
+              <MessageCircle className="w-4 h-4 text-purple-400" />
+              <span className="text-purple-400 text-sm font-medium">Knowledge Memory</span>
+            </div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
+              <Code className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 text-sm font-medium">Pattern-Driven</span>
+            </div>
+          </div>
 
           {/* Free Tier Badge */}
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-500/20 border border-green-500/30 rounded-full mb-8">
@@ -308,7 +324,7 @@ function InfinityAssistantContent() {
               onClick={handleOpenChat}
               className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-semibold text-lg transition-all shadow-lg shadow-purple-500/50"
             >
-              Get Started Free
+              Start Researching
             </button>
             <a href="#pricing">
               <button className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-lg font-semibold text-lg transition-all border border-white/20">
@@ -321,131 +337,251 @@ function InfinityAssistantContent() {
 
       {/* Features Section */}
       <section className="container mx-auto px-4 py-20">
-        <h3 className="text-3xl font-bold text-center mb-12">What You Can Do</h3>
+        <h3 className="text-3xl font-bold text-center mb-4">What You Can Do</h3>
+        <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
+          Powered by the uAA2++ 8-Phase Protocol with deep knowledge synthesis
+        </p>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {/* Search */}
+          {/* Research */}
           <div className="bg-black/40 border border-blue-500/20 rounded-lg p-6 hover:border-blue-500/40 transition-all">
             <Search className="w-12 h-12 text-blue-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Search</h4>
-            <p className="text-gray-400">
-              Search our extensive knowledge base of patterns, wisdom, and best practices. Discover
-              insights and find relevant information.
+            <h4 className="text-xl font-semibold mb-2">Deep Research</h4>
+            <p className="text-gray-400 mb-4">
+              Multi-source research with AI synthesis. Combines web search, knowledge base, and
+              cross-domain pattern matching.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Web Search</span>
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Knowledge Base</span>
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Synthesis</span>
+            </div>
           </div>
 
           {/* Assist */}
           <div className="bg-black/40 border border-purple-500/20 rounded-lg p-6 hover:border-purple-500/40 transition-all">
             <MessageCircle className="w-12 h-12 text-purple-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Assist</h4>
-            <p className="text-gray-400">
-              Get help with questions, code explanations, and research. Have natural conversations
-              and explore ideas.
+            <h4 className="text-xl font-semibold mb-2">Intelligent Assist</h4>
+            <p className="text-gray-400 mb-4">
+              Context-aware assistance with memory. Learns from conversations and provides
+              personalized, knowledge-rich responses.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Memory</span>
+              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Context</span>
+              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Learning</span>
+            </div>
           </div>
 
           {/* Build */}
           <div className="bg-black/40 border border-green-500/20 rounded-lg p-6 hover:border-green-500/40 transition-all">
             <Code className="w-12 h-12 text-green-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Build</h4>
-            <p className="text-gray-400">
-              Get guidance on building applications. Plan architecture, generate code snippets, and
-              design database schemas with AI assistance.
+            <h4 className="text-xl font-semibold mb-2">Pattern-Driven Build</h4>
+            <p className="text-gray-400 mb-4">
+              Build with best practices. Architecture guidance, code generation, and implementation
+              patterns from real-world wisdom.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Patterns</span>
+              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Best Practices</span>
+              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Code Gen</span>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
       <section id="pricing" className="container mx-auto px-4 py-20">
-        <h3 className="text-3xl font-bold text-center mb-12">Simple Pricing</h3>
+        <h3 className="text-3xl font-bold text-center mb-4">Choose Your Plan</h3>
+        <p className="text-gray-400 text-center mb-12">Start free, upgrade when you need more</p>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {/* Free Tier */}
-          <div className="bg-black/40 border border-gray-500/20 rounded-lg p-8">
-            <h4 className="text-2xl font-bold mb-2">Free</h4>
-            <p className="text-4xl font-bold mb-6">
-              $0<span className="text-lg text-gray-400">/month</span>
-            </p>
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">20 queries per day</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">All core features</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Community support</span>
-              </li>
-            </ul>
-            <button
-              onClick={handleOpenChat}
-              className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-            >
-              Get Started
-            </button>
-          </div>
+        {/* Assistant Pricing */}
+        <div className="mb-16">
+          <h4 className="text-xl font-semibold text-center mb-8 flex items-center justify-center gap-2">
+            <MessageCircle className="w-5 h-5 text-purple-400" />
+            <span>Infinity Assistant</span>
+          </h4>
 
-          {/* Paid Tier */}
-          <div className="bg-gradient-to-br from-purple-900/60 to-blue-900/60 border border-purple-500/40 rounded-lg p-8 relative">
-            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full text-sm font-semibold">
-              Popular
+          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            {/* Free Search */}
+            <div className="bg-black/40 border border-gray-500/20 rounded-lg p-8">
+              <h4 className="text-2xl font-bold mb-2">Free Search</h4>
+              <p className="text-4xl font-bold mb-2">
+                $0<span className="text-lg text-gray-400">/month</span>
+              </p>
+              <p className="text-sm text-gray-500 mb-6">Search our knowledge base</p>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">20 searches per day</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Knowledge base access (W/P/G)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Auto-research for missing topics</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-gray-600 mt-1">✗</span>
+                  <span className="text-gray-500">AI conversations</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-gray-600 mt-1">✗</span>
+                  <span className="text-gray-500">Deep research synthesis</span>
+                </li>
+              </ul>
+              <button
+                onClick={handleOpenChat}
+                className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Start Searching
+              </button>
             </div>
-            <h4 className="text-2xl font-bold mb-2">Pro</h4>
-            <p className="text-4xl font-bold mb-6">
-              $29<span className="text-lg text-gray-400">/month</span>
-            </p>
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Unlimited queries</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Priority support</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Advanced analytics</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">API access</span>
-              </li>
-            </ul>
-            <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg transition-all">
-              Upgrade to Pro
-            </button>
-          </div>
 
-          {/* Enterprise */}
-          <div className="bg-black/40 border border-gray-500/20 rounded-lg p-8">
-            <h4 className="text-2xl font-bold mb-2">Enterprise</h4>
-            <p className="text-4xl font-bold mb-6">Custom</p>
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Everything in Pro</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Dedicated support</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">Custom integrations</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-1">✓</span>
-                <span className="text-gray-300">SLA guarantee</span>
-              </li>
-            </ul>
-            <button className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-              Contact Sales
-            </button>
+            {/* Assistant Pro */}
+            <div className="bg-gradient-to-br from-purple-900/60 to-blue-900/60 border border-purple-500/40 rounded-lg p-8 relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full text-sm font-semibold">
+                Most Popular
+              </div>
+              <h4 className="text-2xl font-bold mb-2">Assistant Pro</h4>
+              <p className="text-4xl font-bold mb-2">
+                $29<span className="text-lg text-gray-400">/month</span>
+              </p>
+              <p className="text-sm text-purple-300 mb-6">Full AI assistant experience</p>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">100 queries per day</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">AI-powered conversations</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Deep research with synthesis</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Memory & context retention</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Priority support</span>
+                </li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg transition-all">
+                Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Builder Pricing */}
+        <div>
+          <h4 className="text-xl font-semibold text-center mb-8 flex items-center justify-center gap-2">
+            <Code className="w-5 h-5 text-green-400" />
+            <span>Infinity Builder</span>
+            <span className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">For Developers</span>
+          </h4>
+
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {/* Builder Pro */}
+            <div className="bg-black/40 border border-green-500/20 rounded-lg p-8">
+              <h4 className="text-2xl font-bold mb-2">Builder Pro</h4>
+              <p className="text-4xl font-bold mb-2">
+                $49<span className="text-lg text-gray-400">/month</span>
+              </p>
+              <p className="text-sm text-green-300 mb-6">Everything + code generation</p>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">All Assistant Pro features</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Unlimited queries</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Code generation & patterns</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Architecture guidance</span>
+                </li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition-colors">
+                Get Builder Pro
+              </button>
+            </div>
+
+            {/* Builder Business */}
+            <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 border border-green-500/40 rounded-lg p-8 relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full text-sm font-semibold">
+                For Teams
+              </div>
+              <h4 className="text-2xl font-bold mb-2">Builder Business</h4>
+              <p className="text-4xl font-bold mb-2">
+                $149<span className="text-lg text-gray-400">/month</span>
+              </p>
+              <p className="text-sm text-green-300 mb-6">Team collaboration</p>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">All Builder Pro features</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Up to 10 team members</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Shared knowledge base</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Priority support</span>
+                </li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all">
+                Get Business
+              </button>
+            </div>
+
+            {/* Builder Enterprise */}
+            <div className="bg-black/40 border border-gray-500/20 rounded-lg p-8">
+              <h4 className="text-2xl font-bold mb-2">Enterprise</h4>
+              <p className="text-4xl font-bold mb-2">Custom</p>
+              <p className="text-sm text-gray-400 mb-6">White glove service</p>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Everything in Business</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Unlimited team members</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Dedicated account manager</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">Custom integrations</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-1">✓</span>
+                  <span className="text-gray-300">SLA guarantee</span>
+                </li>
+              </ul>
+              <button className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                Contact Sales
+              </button>
+            </div>
           </div>
         </div>
       </section>

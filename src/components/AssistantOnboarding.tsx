@@ -3,13 +3,27 @@
 /**
  * Assistant Onboarding Component
  *
- * Personalized onboarding for InfinityAssistant.io users
- * Collects user preferences to customize the AI experience
+ * Email sign-up onboarding for FREE tier users
+ * Collects basic preferences for search experience
+ *
+ * FREE TIER users get:
+ * - Search mode only (20 queries/day)
+ * - Knowledge base access (W/P/G)
+ * - Auto-research for missing topics
+ *
+ * This onboarding is lightweight and focused on:
+ * - Email collection for account
+ * - Basic preferences (role, interests)
+ * - Search-focused experience
+ *
+ * PAID users (Assistant Pro) get additional modes after upgrade.
+ * BUILDER users get separate workspace onboarding after subscribing.
  */
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   X,
   Check,
@@ -17,7 +31,6 @@ import {
   ArrowLeft,
   Search,
   MessageCircle,
-  Code,
   Sparkles,
   Loader2,
   Briefcase,
@@ -28,8 +41,10 @@ import {
   BookOpen,
   Zap,
   Brain,
-  Target,
   Users,
+  Plus,
+  Mail,
+  Lock,
 } from 'lucide-react';
 
 interface WizardStep {
@@ -41,12 +56,16 @@ interface WizardStep {
 
 // User preferences collected during onboarding
 export interface UserPreferences {
+  email?: string; // Email for account (free tier sign-up)
   role: string;
   experienceLevel: string;
   primaryGoals: string[];
   preferredMode: 'search' | 'assist' | 'build';
   interests: string[];
+  customInterests: string[]; // User-added technologies
   communicationStyle: 'concise' | 'detailed' | 'conversational';
+  workflowPhases: ('research' | 'plan' | 'deliver')[]; // Preferred workflow phases
+  tier?: 'free' | 'assistant_pro' | 'builder_pro'; // User tier
 }
 
 interface AssistantOnboardingProps {
@@ -58,16 +77,28 @@ interface AssistantOnboardingProps {
 export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnboardingProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [customInterestInput, setCustomInterestInput] = useState('');
+  const [emailError, setEmailError] = useState('');
 
-  // User preferences state
+  // User preferences state - FREE tier defaults to search mode
   const [preferences, setPreferences] = useState<UserPreferences>({
+    email: '',
     role: '',
     experienceLevel: '',
     primaryGoals: [],
-    preferredMode: 'assist',
+    preferredMode: 'search', // FREE tier = search mode only
     interests: [],
+    customInterests: [],
     communicationStyle: 'conversational',
+    workflowPhases: ['research'], // FREE tier focuses on research
+    tier: 'free',
   });
+
+  // Email validation
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   // Selection option component
   const SelectionOption = ({
@@ -90,6 +121,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
       blue: { border: 'border-blue-500', bg: 'bg-blue-500/10', icon: 'text-blue-400' },
       green: { border: 'border-green-500', bg: 'bg-green-500/10', icon: 'text-green-400' },
       orange: { border: 'border-orange-500', bg: 'bg-orange-500/10', icon: 'text-orange-400' },
+      cyan: { border: 'border-cyan-500', bg: 'bg-cyan-500/10', icon: 'text-cyan-400' },
     };
     const colors = colorClasses[color] || colorClasses.purple;
 
@@ -118,15 +150,19 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   const MultiSelectOption = ({
     label,
     selected,
-    onClick
+    onClick,
+    removable = false,
+    onRemove
   }: {
     label: string;
     selected: boolean;
     onClick: () => void;
+    removable?: boolean;
+    onRemove?: () => void;
   }) => (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-full border transition-all text-sm ${
+      className={`px-4 py-2 rounded-full border transition-all text-sm flex items-center gap-1 ${
         selected
           ? 'border-purple-500 bg-purple-500/20 text-purple-300'
           : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
@@ -134,6 +170,15 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
     >
       {label}
       {selected && <Check className="w-3 h-3 inline ml-1" />}
+      {removable && selected && (
+        <X
+          className="w-3 h-3 ml-1 hover:text-red-400"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.();
+          }}
+        />
+      )}
     </button>
   );
 
@@ -155,41 +200,90 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
     }));
   };
 
+  const addCustomInterest = () => {
+    const trimmed = customInterestInput.trim();
+    if (trimmed && !preferences.customInterests.includes(trimmed) && !preferences.interests.includes(trimmed.toLowerCase())) {
+      setPreferences(prev => ({
+        ...prev,
+        customInterests: [...prev.customInterests, trimmed]
+      }));
+      setCustomInterestInput('');
+    }
+  };
+
+  const removeCustomInterest = (interest: string) => {
+    setPreferences(prev => ({
+      ...prev,
+      customInterests: prev.customInterests.filter(i => i !== interest)
+    }));
+  };
+
   const steps: WizardStep[] = [
-    // Step 1: Welcome
+    // Step 1: Welcome + Email
     {
       id: 'welcome',
-      title: 'Welcome to Infinity Assistant',
-      description: 'Let\'s personalize your experience',
+      title: 'Welcome to Infinity Search',
+      description: 'Get started with free knowledge search',
       component: (
         <div className="space-y-6 text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
-              <Sparkles className="w-10 h-10 text-white" />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+              <Search className="w-10 h-10 text-white" />
             </div>
           </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            Welcome to Infinity Assistant
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            Infinity Search
           </h2>
           <p className="text-gray-300 max-w-md mx-auto">
-            Your intelligent AI assistant powered by graduated knowledge. Answer a few quick questions so we can personalize your experience.
+            Search our growing knowledge base of patterns, wisdom, and gotchas. Your searches help us build better knowledge for everyone.
           </p>
-          <div className="grid grid-cols-3 gap-4 mt-8">
-            <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <Brain className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Smart</div>
-              <div className="text-xs text-gray-500 mt-1">Learns your style</div>
+
+          {/* Email signup */}
+          <div className="max-w-sm mx-auto mt-8">
+            <label className="block text-left text-sm text-gray-400 mb-2">
+              Enter your email to get started (optional)
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+              <Input
+                type="email"
+                value={preferences.email || ''}
+                onChange={(e) => {
+                  setPreferences(prev => ({ ...prev, email: e.target.value }));
+                  setEmailError('');
+                }}
+                placeholder="your@email.com"
+                className="pl-10 bg-gray-800 border-gray-700 text-white placeholder-gray-500"
+              />
             </div>
-            <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <Target className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Focused</div>
-              <div className="text-xs text-gray-500 mt-1">Your goals matter</div>
+            {emailError && (
+              <p className="text-red-400 text-xs mt-1 text-left">{emailError}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-2 text-left">
+              We&apos;ll save your preferences and notify you of new features.
+            </p>
+          </div>
+
+          {/* Free tier info */}
+          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg max-w-sm mx-auto">
+            <div className="flex items-center gap-2 justify-center mb-2">
+              <Sparkles className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium text-blue-300">Free Tier Includes</span>
             </div>
-            <div className="p-4 rounded-lg bg-gray-800 border border-gray-700">
-              <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-              <div className="text-sm font-medium text-gray-300">Fast</div>
-              <div className="text-xs text-gray-500 mt-1">Instant answers</div>
-            </div>
+            <ul className="text-xs text-gray-400 space-y-1 text-left">
+              <li className="flex items-center gap-2">
+                <Check className="w-3 h-3 text-green-400" />
+                <span>20 searches per day</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="w-3 h-3 text-green-400" />
+                <span>Knowledge base access (W/P/G)</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="w-3 h-3 text-green-400" />
+                <span>Auto-research for new topics</span>
+              </li>
+            </ul>
           </div>
         </div>
       ),
@@ -334,13 +428,14 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
         </div>
       ),
     },
-    // Step 5: Interests/Tech stack
+    // Step 6: Interests/Tech stack (ENHANCED with custom input)
     {
       id: 'interests',
       title: 'What technologies interest you?',
-      description: 'We\'ll prioritize relevant knowledge',
+      description: 'Select or add your own technologies',
       component: (
         <div className="space-y-4">
+          {/* Preset Technologies */}
           <div className="flex flex-wrap gap-2">
             <MultiSelectOption
               label="React / Next.js"
@@ -392,16 +487,93 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
               selected={preferences.interests.includes('system-design')}
               onClick={() => toggleInterest('system-design')}
             />
+            <MultiSelectOption
+              label="Rust"
+              selected={preferences.interests.includes('rust')}
+              onClick={() => toggleInterest('rust')}
+            />
+            <MultiSelectOption
+              label="Go"
+              selected={preferences.interests.includes('go')}
+              onClick={() => toggleInterest('go')}
+            />
+            <MultiSelectOption
+              label="Java / Spring"
+              selected={preferences.interests.includes('java')}
+              onClick={() => toggleInterest('java')}
+            />
+            <MultiSelectOption
+              label="C# / .NET"
+              selected={preferences.interests.includes('dotnet')}
+              onClick={() => toggleInterest('dotnet')}
+            />
+            <MultiSelectOption
+              label="GraphQL"
+              selected={preferences.interests.includes('graphql')}
+              onClick={() => toggleInterest('graphql')}
+            />
+            <MultiSelectOption
+              label="Kubernetes"
+              selected={preferences.interests.includes('kubernetes')}
+              onClick={() => toggleInterest('kubernetes')}
+            />
           </div>
-          {preferences.interests.length > 0 && (
+
+          {/* Custom Technologies */}
+          {preferences.customInterests.length > 0 && (
+            <div className="pt-2 border-t border-gray-700">
+              <p className="text-xs text-gray-500 mb-2">Your custom technologies:</p>
+              <div className="flex flex-wrap gap-2">
+                {preferences.customInterests.map(interest => (
+                  <MultiSelectOption
+                    key={interest}
+                    label={interest}
+                    selected={true}
+                    onClick={() => {}}
+                    removable={true}
+                    onRemove={() => removeCustomInterest(interest)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add Custom Technology */}
+          <div className="pt-2 border-t border-gray-700">
+            <p className="text-xs text-gray-500 mb-2">Add your own technology:</p>
+            <div className="flex gap-2">
+              <Input
+                value={customInterestInput}
+                onChange={(e) => setCustomInterestInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCustomInterest();
+                  }
+                }}
+                placeholder="e.g., Flutter, Svelte, Elixir..."
+                className="flex-1 bg-gray-800 border-gray-700 text-white placeholder-gray-500"
+              />
+              <Button
+                onClick={addCustomInterest}
+                disabled={!customInterestInput.trim()}
+                className="bg-purple-600 hover:bg-purple-500"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Selection count */}
+          {(preferences.interests.length + preferences.customInterests.length) > 0 && (
             <p className="text-sm text-gray-400">
-              Selected: {preferences.interests.length} interest{preferences.interests.length !== 1 ? 's' : ''}
+              Selected: {preferences.interests.length + preferences.customInterests.length} technolog{(preferences.interests.length + preferences.customInterests.length) !== 1 ? 'ies' : 'y'}
             </p>
           )}
         </div>
       ),
     },
-    // Step 6: Communication style
+    // Step 7: Communication style
     {
       id: 'style',
       title: 'How should I communicate?',
@@ -435,74 +607,137 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
         </div>
       ),
     },
-    // Step 7: Preferred mode
+    // Step 6: Free Tier Features
     {
-      id: 'mode',
-      title: 'Which mode will you use most?',
-      description: 'We\'ll set this as your default',
+      id: 'features',
+      title: 'Your Free Search Experience',
+      description: 'Here\'s what you can do with Infinity Search',
       component: (
-        <div className="space-y-3">
-          <SelectionOption
-            icon={Search}
-            label="Search Mode"
-            description="Find patterns, wisdom, and best practices in our knowledge base"
-            selected={preferences.preferredMode === 'search'}
-            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'search' }))}
-            color="blue"
-          />
-          <SelectionOption
-            icon={MessageCircle}
-            label="Assist Mode"
-            description="Ask questions, get explanations, and research assistance"
-            selected={preferences.preferredMode === 'assist'}
-            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'assist' }))}
-            color="purple"
-          />
-          <SelectionOption
-            icon={Code}
-            label="Build Mode"
-            description="Get guidance on architecture, code generation, and implementation"
-            selected={preferences.preferredMode === 'build'}
-            onClick={() => setPreferences(prev => ({ ...prev, preferredMode: 'build' }))}
-            color="green"
-          />
+        <div className="space-y-4">
+          {/* Search - Available */}
+          <div className="p-4 rounded-lg border-2 border-blue-500 bg-blue-500/10">
+            <div className="flex items-center gap-3">
+              <Search className="w-6 h-6 text-blue-400" />
+              <div className="flex-1">
+                <div className="font-medium text-white flex items-center gap-2">
+                  Search
+                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">Free</span>
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Search our knowledge base of patterns, wisdom, and gotchas
+                </div>
+              </div>
+              <Check className="w-5 h-5 text-blue-400" />
+            </div>
+          </div>
+
+          {/* Assist - Locked */}
+          <div className="p-4 rounded-lg border-2 border-gray-700 bg-gray-800 opacity-75">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="w-6 h-6 text-gray-500" />
+              <div className="flex-1">
+                <div className="font-medium text-gray-400 flex items-center gap-2">
+                  Assist
+                  <Lock className="w-3 h-3" />
+                  <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">Pro $29/mo</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  AI conversations, deep research, memory & context
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Build - Locked */}
+          <div className="p-4 rounded-lg border-2 border-gray-700 bg-gray-800 opacity-75">
+            <div className="flex items-center gap-3">
+              <Brain className="w-6 h-6 text-gray-500" />
+              <div className="flex-1">
+                <div className="font-medium text-gray-400 flex items-center gap-2">
+                  Build
+                  <Lock className="w-3 h-3" />
+                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">Builder $49/mo</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Code generation, architecture guidance, full-stack development
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Upgrade CTA */}
+          <div className="mt-4 p-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
+            <p className="text-sm text-gray-300 text-center">
+              <Sparkles className="w-4 h-4 inline mr-1 text-purple-400" />
+              Unlock more with <a href="#pricing" className="text-purple-400 hover:text-purple-300 font-medium">Assistant Pro</a>
+            </p>
+          </div>
         </div>
       ),
     },
-    // Step 8: Complete
+    // Step 7: Complete
     {
       id: 'complete',
       title: "You're All Set!",
-      description: 'Your personalized experience is ready',
+      description: 'Start searching our knowledge base',
       component: (
         <div className="text-center space-y-6">
           <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
               <Check className="w-10 h-10 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white">Perfect! I&apos;m ready to help.</h2>
+          <h2 className="text-2xl font-bold text-white">Welcome to Infinity Search!</h2>
+
+          {/* What we learned */}
           <div className="text-left max-w-md mx-auto bg-gray-800 rounded-lg p-4 space-y-2">
             <p className="text-sm text-gray-300">
-              <span className="text-purple-400">Based on your preferences:</span>
+              <span className="text-blue-400">Your search experience is personalized:</span>
             </p>
             <ul className="text-sm text-gray-400 space-y-1">
+              {preferences.email && (
+                <li>• Signed up as <span className="text-white">{preferences.email}</span></li>
+              )}
               {preferences.role && (
-                <li>• I&apos;ll tailor responses for a <span className="text-white">{preferences.role}</span></li>
+                <li>• Tailored for <span className="text-white">{preferences.role}</span></li>
               )}
               {preferences.experienceLevel && (
-                <li>• Explanations will be <span className="text-white">{preferences.experienceLevel}</span> level</li>
+                <li>• <span className="text-white">{preferences.experienceLevel}</span> level results</li>
               )}
-              {preferences.communicationStyle && (
-                <li>• I&apos;ll keep responses <span className="text-white">{preferences.communicationStyle}</span></li>
-              )}
-              {preferences.interests.length > 0 && (
-                <li>• Focusing on: <span className="text-white">{preferences.interests.slice(0, 3).join(', ')}{preferences.interests.length > 3 ? '...' : ''}</span></li>
+              {(preferences.interests.length + preferences.customInterests.length) > 0 && (
+                <li>• Focusing on: <span className="text-white">
+                  {[...preferences.interests, ...preferences.customInterests].slice(0, 3).join(', ')}
+                  {(preferences.interests.length + preferences.customInterests.length) > 3 ? '...' : ''}
+                </span></li>
               )}
             </ul>
           </div>
+
+          {/* Free tier reminder */}
+          <div className="max-w-md mx-auto bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 justify-center mb-2">
+              <Search className="w-5 h-5 text-blue-400" />
+              <span className="font-medium text-blue-300">Free Search</span>
+            </div>
+            <ul className="text-xs text-gray-400 space-y-1">
+              <li>• 20 searches per day</li>
+              <li>• Knowledge base access (Wisdom, Patterns, Gotchas)</li>
+              <li>• Auto-research creates knowledge for missing topics</li>
+            </ul>
+          </div>
+
+          {/* Upgrade hint */}
+          <div className="max-w-md mx-auto bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-3">
+            <p className="text-xs text-gray-400">
+              Want AI conversations and deep research?{' '}
+              <a href="#pricing" className="text-purple-400 hover:text-purple-300 font-medium">
+                Upgrade to Assistant Pro
+              </a>
+            </p>
+          </div>
+
           <p className="text-xs text-gray-500">
-            Free tier includes 20 queries per day. You can change preferences anytime in settings.
+            You can change preferences anytime in settings.
           </p>
         </div>
       ),
@@ -510,6 +745,14 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   ];
 
   const handleNext = () => {
+    // Validate email on welcome step if provided
+    if (steps[currentStep].id === 'welcome' && preferences.email) {
+      if (!validateEmail(preferences.email)) {
+        setEmailError('Please enter a valid email address');
+        return;
+      }
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }

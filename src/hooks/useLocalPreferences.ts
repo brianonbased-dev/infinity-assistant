@@ -13,7 +13,9 @@ export interface UserPreferences {
   primaryGoals: string[];
   preferredMode: 'search' | 'assist' | 'build';
   interests: string[];
+  customInterests: string[]; // User-added technologies
   communicationStyle: 'concise' | 'detailed' | 'conversational';
+  workflowPhases: ('research' | 'plan' | 'deliver')[]; // Preferred workflow phases
 }
 
 const PREFERENCES_KEY = 'infinity_user_preferences';
@@ -25,7 +27,9 @@ const defaultPreferences: UserPreferences = {
   primaryGoals: [],
   preferredMode: 'assist',
   interests: [],
+  customInterests: [],
   communicationStyle: 'conversational',
+  workflowPhases: ['research', 'plan', 'deliver'],
 };
 
 interface UseLocalPreferencesReturn {
@@ -211,9 +215,26 @@ export function generatePreferencesPrompt(preferences: UserPreferences | null): 
     parts.push(styleDescriptions[preferences.communicationStyle] || '');
   }
 
-  // Interests for context
-  if (preferences.interests && preferences.interests.length > 0) {
-    parts.push(`Their interests include: ${preferences.interests.join(', ')}.`);
+  // Interests for context (combine preset and custom)
+  const allInterests = [
+    ...(preferences.interests || []),
+    ...(preferences.customInterests || []),
+  ];
+  if (allInterests.length > 0) {
+    parts.push(`Their interests include: ${allInterests.join(', ')}.`);
+  }
+
+  // Workflow phases preference
+  if (preferences.workflowPhases && preferences.workflowPhases.length > 0) {
+    const phaseDescriptions: Record<string, string> = {
+      research: 'Research (exploring options and gathering information)',
+      plan: 'Plan (organizing and strategizing)',
+      deliver: 'Deliver (implementing and completing)',
+    };
+    const phaseTexts = preferences.workflowPhases
+      .map((p) => phaseDescriptions[p] || p)
+      .join(' → ');
+    parts.push(`Their preferred workflow: ${phaseTexts}.`);
   }
 
   // Primary goals

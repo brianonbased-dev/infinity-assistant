@@ -3,14 +3,18 @@
 /**
  * Unified Search Bar Component
  *
- * Combines Search + Assist + Build in one unified interface
- * Adapted for standalone infinityassistant-service
+ * Subscription-aware interface for Infinity Assistant
+ *
+ * Tier-based access:
+ * - FREE: Search only (basic knowledge base search)
+ * - ASSISTANT_PRO: Search + Assist (full research + conversation)
+ * - BUILDER_*: Search + Assist + Build (full capabilities)
  *
  * Features:
- * - Mode toggle (Search/Assist/Build)
+ * - Mode toggle based on subscription tier
  * - Command shortcuts (/search, /assist, /build)
  * - Real-time suggestions and autocomplete
- * - Advanced search capabilities
+ * - Upgrade prompts for locked features
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -25,9 +29,14 @@ import {
   Code,
   Mic,
   XCircle,
+  Lock,
+  Crown,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { generatePreferencesPrompt, UserPreferences } from '@/hooks/useLocalPreferences';
+import { type UserTier, isModeAllowedForTier } from '@/types/agent-capabilities';
+import { useFreemiumDebounced } from '@/hooks/useFreemium';
+import { FreemiumOfferCard, FreemiumResponse } from '@/components/FreemiumOffer';
 
 type SearchMode = 'search' | 'assist' | 'build';
 
@@ -51,15 +60,21 @@ interface UnifiedSearchBarProps {
   initialConversationId?: string;
   onModeChange?: (mode: SearchMode) => void;
   userPreferences?: UserPreferences | null;
+  userTier?: UserTier; // Subscription tier determines available modes
+  onUpgradeClick?: () => void; // Callback when user clicks upgrade
 }
 
 export default function UnifiedSearchBar({
-  initialMode = 'assist',
+  initialMode = 'search', // Default to search for free users
   initialConversationId,
   onModeChange,
   userPreferences,
+  userTier = 'free', // Default to free tier
+  onUpgradeClick,
 }: UnifiedSearchBarProps) {
-  const [mode, setMode] = useState<SearchMode>(initialMode);
+  // Set initial mode based on tier - free users default to search
+  const effectiveInitialMode = userTier === 'free' ? 'search' : initialMode;
+  const [mode, setMode] = useState<SearchMode>(effectiveInitialMode);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +99,36 @@ export default function UnifiedSearchBar({
 
   // Debounce input for autocomplete (300ms delay)
   const debouncedInput = useDebounce(input, 300);
+
+  // Freemium offers for free tier users
+  const freemium = useFreemiumDebounced('anonymous', 600); // 600ms debounce for offer check
+
+  // Check for freemium offers when user types (only for free tier)
+  useEffect(() => {
+    if (userTier === 'free' && debouncedInput.length > 10) {
+      freemium.debouncedCheckForOffer(debouncedInput);
+    }
+  }, [debouncedInput, userTier, freemium]);
+
+  // Handle accepting a freemium offer
+  const handleAcceptFreemium = useCallback(async () => {
+    if (!freemium.currentOffer || !input.trim()) return;
+
+    const result = await freemium.executeFreemium(input.trim(), freemium.currentOffer.type);
+
+    if (result) {
+      // Add the freemium response as a message
+      const freemiumMessage: Message = {
+        id: `freemium-${Date.now()}`,
+        role: 'assistant',
+        content: result,
+        timestamp: new Date().toISOString(),
+        mode,
+      };
+      setMessages((prev) => [...prev, freemiumMessage]);
+      setInput('');
+    }
+  }, [freemium, input, mode]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -120,10 +165,15 @@ export default function UnifiedSearchBar({
           ? `\n\nI see you're interested in **${userPreferences.interests.slice(0, 3).join(', ')}** - feel free to ask about those topics!`
           : '';
 
+      // Tier-aware welcome messages
+      const freeSearchWelcome = `Hello, ${userName}! Welcome to **Infinity Search**.\n\nSearch our knowledge base for:\n- **Patterns** - Proven solutions and approaches\n- **Wisdom** - Key insights and principles\n- **Gotchas** - Common pitfalls to avoid\n\nYour searches help us grow our knowledge! If we don't have what you're looking for, we'll note it and research it.${interestHint}\n\n*Tip: Upgrade to Assistant Pro for AI-powered conversations and deep research.*\n\nWhat would you like to search for?`;
+
+      const proSearchWelcome = `Hello, ${userName}! I am Infinity Agent with **Deep Research** capabilities.\n\n**Research Mode** combines:\n- Web search (Brave API)\n- Knowledge base (patterns, wisdom, gotchas)\n- AI-powered synthesis\n- Cross-domain connections\n\nI can conduct:\n- **Quick research** (<500ms) - fast lookups\n- **Standard research** (<2s) - balanced depth\n- **Deep research** (<10s) - thorough analysis\n- **Comprehensive research** (<30s) - full protocol${interestHint}\n\nWhat would you like to research?`;
+
       const welcomeMessages: Record<SearchMode, string> = {
-        search: `Hello, ${userName}! I am Infinity Agent. Use **Search** mode to find information in our knowledge base.\n\nTry searching for:\n- Patterns and best practices\n- Wisdom and insights\n- Code examples\n- Solutions to problems${interestHint}\n\nHow can I help you search?`,
-        assist: `Hello, ${userName}! I am Infinity Agent. ${styleHint}\n\nI can help with:\n- Answering questions\n- Explaining code\n- Research assistance\n- Problem solving${interestHint}\n\nHow can I assist you today?`,
-        build: `Hello, ${userName}! I am Infinity Agent. Use **Build** mode to get guidance on building applications.\n\nI can help you:\n- Plan your application architecture\n- Generate code snippets\n- Design database schemas\n- Provide best practices${interestHint}\n\nWhat would you like to build?`,
+        search: userTier === 'free' ? freeSearchWelcome : proSearchWelcome,
+        assist: `Hello, ${userName}! I am Infinity Agent. ${styleHint}\n\n**Assist Mode** provides:\n- Intelligent conversation with memory\n- Knowledge-rich responses (W/P/G)\n- Context-aware assistance\n- Phase-tracked learning\n\nI can help with:\n- Answering questions\n- Explaining code\n- Research assistance\n- Problem solving${interestHint}\n\nHow can I assist you today?`,
+        build: `Hello, ${userName}! I am Infinity Agent. Use **Build** mode for development guidance.\n\n**Build Mode** leverages:\n- Best practices & patterns\n- Architecture templates\n- Code generation\n- Implementation guidance\n\nI can help you:\n- Plan your application architecture\n- Generate code snippets\n- Design database schemas\n- Apply industry best practices${interestHint}\n\nWhat would you like to build?`,
       };
 
       setMessages([
@@ -150,6 +200,7 @@ export default function UnifiedSearchBar({
   );
 
   // Generate suggestions with caching and debouncing
+  // Uses the efficient agent search endpoint for faster suggestions
   const generateSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSuggestions([]);
@@ -190,29 +241,59 @@ export default function UnifiedSearchBar({
     setIsLoadingSuggestions(true);
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=5`, {
-        signal: abortControllerRef.current.signal,
-      });
+      // Use agent search endpoint for more efficient querying
+      const response = await fetch(
+        `/api/search/agent?q=${encodeURIComponent(query)}&limit=5&userTier=${userTier}`,
+        { signal: abortControllerRef.current.signal }
+      );
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.suggestions && data.suggestions.length > 0) {
-          // Format suggestions
-          const formattedSuggestions = data.suggestions.map((suggestion: Suggestion) => ({
-            text: suggestion.text,
-            type: suggestion.type,
-            metadata: suggestion.metadata,
-          }));
+        if (data.success && data.results) {
+          // Convert agent search results to suggestions format
+          const formattedSuggestions: Suggestion[] = [];
 
-          // Cache suggestions (limit cache size to 50 entries)
-          if (suggestionsCacheRef.current.size >= 50) {
-            const firstKey = suggestionsCacheRef.current.keys().next().value;
-            if (firstKey) suggestionsCacheRef.current.delete(firstKey);
+          // Add wisdom results
+          (data.results.wisdom || []).slice(0, 2).forEach((item: { title?: string; content: string; metadata?: Record<string, unknown> }) => {
+            formattedSuggestions.push({
+              text: item.title || item.content.substring(0, 60),
+              type: 'wisdom',
+              metadata: item.metadata,
+            });
+          });
+
+          // Add pattern results
+          (data.results.patterns || []).slice(0, 2).forEach((item: { title?: string; content: string; metadata?: Record<string, unknown> }) => {
+            formattedSuggestions.push({
+              text: item.title || item.content.substring(0, 60),
+              type: 'pattern',
+              metadata: item.metadata,
+            });
+          });
+
+          // Add gotcha results
+          (data.results.gotchas || []).slice(0, 1).forEach((item: { title?: string; content: string; metadata?: Record<string, unknown> }) => {
+            formattedSuggestions.push({
+              text: item.title || item.content.substring(0, 60),
+              type: 'gotcha',
+              metadata: item.metadata,
+            });
+          });
+
+          if (formattedSuggestions.length > 0) {
+            // Cache suggestions (limit cache size to 50 entries)
+            if (suggestionsCacheRef.current.size >= 50) {
+              const firstKey = suggestionsCacheRef.current.keys().next().value;
+              if (firstKey) suggestionsCacheRef.current.delete(firstKey);
+            }
+            suggestionsCacheRef.current.set(cacheKey, formattedSuggestions);
+
+            setSuggestions(formattedSuggestions);
+            setShowSuggestions(true);
+          } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
           }
-          suggestionsCacheRef.current.set(cacheKey, formattedSuggestions);
-
-          setSuggestions(formattedSuggestions);
-          setShowSuggestions(true);
         } else {
           setSuggestions([]);
           setShowSuggestions(false);
@@ -232,7 +313,7 @@ export default function UnifiedSearchBar({
     } finally {
       setIsLoadingSuggestions(false);
     }
-  }, []);
+  }, [userTier]);
 
   // Effect to trigger suggestions when debounced input changes
   useEffect(() => {
@@ -306,21 +387,32 @@ export default function UnifiedSearchBar({
     setShowSuggestions(false);
 
     try {
-      // All modes go through /api/chat for full research experience
-      // Search mode now includes: web search (Brave) + knowledge base + LLM synthesis
-      const apiEndpoint = '/api/chat';
+      // Determine API endpoint based on mode
+      // Search mode uses agent search for efficient querying
+      // Assist and Build modes use chat API for full conversation
+      const isSearchMode = mode === 'search';
+      const apiEndpoint = isSearchMode ? '/api/search/agent' : '/api/chat';
 
       // Generate preferences context for personalization
       const preferencesContext = generatePreferencesPrompt(userPreferences || null);
 
-      const requestBody = {
-        message: userMessage.content,
-        conversationId,
-        mode,
-        // Include preferences for AI personalization
-        userContext: preferencesContext || undefined,
-        preferences: userPreferences || undefined,
-      };
+      // Build request body based on mode
+      const requestBody = isSearchMode
+        ? {
+            query: userMessage.content,
+            protocol: userTier === 'free' ? 'quick' : 'standard',
+            userId: 'anonymous',
+            userTier,
+            includeFreemium: userTier === 'free',
+          }
+        : {
+            message: userMessage.content,
+            conversationId,
+            mode,
+            // Include preferences for AI personalization
+            userContext: preferencesContext || undefined,
+            preferences: userPreferences || undefined,
+          };
 
       const response = await fetch(apiEndpoint, {
         method: 'POST',
@@ -357,7 +449,7 @@ export default function UnifiedSearchBar({
         setRateLimit(data.rateLimit);
       }
 
-      // Handle response - unified format for all modes
+      // Handle response - format based on mode
       if (data.success === false) {
         // Error response
         const errorMsg: Message = {
@@ -368,8 +460,65 @@ export default function UnifiedSearchBar({
           mode,
         };
         setMessages((prev) => [...prev, errorMsg]);
+      } else if (mode === 'search' && data.results) {
+        // Agent search response - format W/P/G results
+        let searchContent = '';
+
+        // Check for generated answer from knowledge gap capture
+        if (data.generatedAnswer) {
+          searchContent += `**Generated Answer:**\n${data.generatedAnswer}\n\n---\n\n`;
+        }
+
+        // Show synthesis if available
+        if (data.synthesis?.summary) {
+          searchContent += `**Summary:**\n${data.synthesis.summary}\n\n`;
+        }
+
+        // Format wisdom results
+        if (data.results.wisdom && data.results.wisdom.length > 0) {
+          searchContent += `**💡 Wisdom** (${data.results.wisdom.length} found)\n`;
+          data.results.wisdom.slice(0, 5).forEach((item: { title?: string; content: string; score?: number }) => {
+            searchContent += `- ${item.title || item.content.substring(0, 100)}${item.score ? ` (${Math.round(item.score * 100)}% match)` : ''}\n`;
+          });
+          searchContent += '\n';
+        }
+
+        // Format pattern results
+        if (data.results.patterns && data.results.patterns.length > 0) {
+          searchContent += `**📋 Patterns** (${data.results.patterns.length} found)\n`;
+          data.results.patterns.slice(0, 5).forEach((item: { title?: string; content: string; score?: number }) => {
+            searchContent += `- ${item.title || item.content.substring(0, 100)}${item.score ? ` (${Math.round(item.score * 100)}% match)` : ''}\n`;
+          });
+          searchContent += '\n';
+        }
+
+        // Format gotcha results
+        if (data.results.gotchas && data.results.gotchas.length > 0) {
+          searchContent += `**⚠️ Gotchas** (${data.results.gotchas.length} found)\n`;
+          data.results.gotchas.slice(0, 3).forEach((item: { title?: string; content: string; score?: number }) => {
+            searchContent += `- ${item.title || item.content.substring(0, 100)}${item.score ? ` (${Math.round(item.score * 100)}% match)` : ''}\n`;
+          });
+          searchContent += '\n';
+        }
+
+        // No results message
+        if (data.counts.total === 0 && !data.generatedAnswer) {
+          searchContent = "No results found in our knowledge base. We've noted this topic for future research.\n\n*Tip: Upgrade to Assistant Pro for AI-powered answers to any question.*";
+        }
+
+        // Add metadata
+        searchContent += `\n---\n*Search completed in ${data.metadata?.searchTimeMs || 0}ms | Protocol: ${data.protocol || 'quick'}*`;
+
+        const searchMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: searchContent,
+          timestamp: new Date().toISOString(),
+          mode,
+        };
+        setMessages((prev) => [...prev, searchMessage]);
       } else {
-        // Success response - works for all modes (search, assist, build)
+        // Chat response - works for assist and build modes
         const assistantMessage: Message = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
@@ -440,73 +589,127 @@ export default function UnifiedSearchBar({
     }
   };
 
+  // Mode configuration with tier requirements
   const modeConfig = {
     search: {
       icon: Search,
       label: 'Search',
       color: 'blue',
-      description: 'Search web & knowledge base',
+      description: userTier === 'free' ? 'Search knowledge base' : 'Deep research with knowledge synthesis',
+      hint: userTier === 'free' ? 'Knowledge Base Search' : 'Web + Knowledge Base + AI Synthesis',
+      requiredTier: 'free' as UserTier, // Available to all
+      upgradeMessage: null,
     },
     assist: {
       icon: MessageCircle,
       label: 'Assist',
       color: 'purple',
-      description: 'Get help and answers',
+      description: 'Get intelligent help and answers',
+      hint: 'Conversation + Knowledge + Memory',
+      requiredTier: 'assistant_pro' as UserTier,
+      upgradeMessage: 'Upgrade to Assistant Pro for AI conversations',
     },
     build: {
       icon: Code,
       label: 'Build',
       color: 'green',
-      description: 'Generate code and projects',
+      description: 'Generate code and architecture',
+      hint: 'Patterns + Best Practices + Code Gen',
+      requiredTier: 'builder_pro' as UserTier,
+      upgradeMessage: 'Upgrade to Builder Pro for code generation',
     },
   };
 
   const currentModeConfig = modeConfig[mode];
+
+  // Check if a mode is available for the current tier
+  const isModeAvailable = (m: SearchMode): boolean => {
+    return isModeAllowedForTier(userTier, m);
+  };
+
+  // Handle mode change with tier check
+  const handleTierAwareModeChange = (m: SearchMode) => {
+    if (isModeAvailable(m)) {
+      handleModeChange(m);
+    } else if (onUpgradeClick) {
+      onUpgradeClick();
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 to-black text-white">
       {/* Mode Toggle Bar */}
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Mode:</span>
-              {(['search', 'assist', 'build'] as SearchMode[]).map((m) => {
-                const config = modeConfig[m];
-                const Icon = config.icon;
-                const isActive = mode === m;
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">Mode:</span>
+                {(['search', 'assist', 'build'] as SearchMode[]).map((m) => {
+                  const config = modeConfig[m];
+                  const Icon = config.icon;
+                  const isActive = mode === m;
+                  const isAvailable = isModeAvailable(m);
 
-                return (
-                  <button
-                    key={m}
-                    onClick={() => handleModeChange(m)}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-                      isActive
-                        ? m === 'search'
-                          ? 'bg-blue-600 text-white shadow-lg'
-                          : m === 'assist'
-                            ? 'bg-purple-600 text-white shadow-lg'
-                            : 'bg-green-600 text-white shadow-lg'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {config.label}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => handleTierAwareModeChange(m)}
+                      className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+                        isActive
+                          ? m === 'search'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                            : m === 'assist'
+                              ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                              : 'bg-green-600 text-white shadow-lg shadow-green-500/30'
+                          : isAvailable
+                            ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                            : 'bg-gray-900 text-gray-600 cursor-not-allowed border border-gray-800'
+                      }`}
+                      title={isAvailable ? config.hint : config.upgradeMessage || 'Upgrade required'}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {config.label}
+                      {!isAvailable && <Lock className="w-3 h-3 ml-1" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Rate Limit & Tier Display */}
+              <div className="flex items-center gap-3 text-sm">
+                {userTier !== 'free' && (
+                  <span className="px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs flex items-center gap-1">
+                    <Crown className="w-3 h-3" />
+                    {userTier.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                )}
+                {rateLimit && (
+                  <span className="text-gray-400">
+                    {rateLimit.limit === -1
+                      ? 'Unlimited'
+                      : `${rateLimit.remaining} / ${rateLimit.limit} remaining`}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Rate Limit Display */}
-            {rateLimit && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-400">
-                  {rateLimit.limit === -1
-                    ? 'Unlimited'
-                    : `${rateLimit.remaining} / ${rateLimit.limit} remaining`}
-                </span>
+            {/* Mode Hint Bar */}
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-gray-500">
+                <Sparkles className="w-3 h-3" />
+                <span>{currentModeConfig.hint}</span>
               </div>
-            )}
+              {userTier === 'free' && (
+                <button
+                  onClick={onUpgradeClick}
+                  className="text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                >
+                  <Crown className="w-3 h-3" />
+                  Upgrade for full access
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -576,6 +779,30 @@ export default function UnifiedSearchBar({
       {/* Unified Search Bar */}
       <div className="border-t border-gray-800 bg-gray-900/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
+          {/* Freemium Offer (for free tier users) */}
+          {userTier === 'free' && freemium.currentOffer && !freemium.isExecuting && (
+            <FreemiumOfferCard
+              offer={freemium.currentOffer}
+              query={input}
+              onAccept={handleAcceptFreemium}
+              onDismiss={freemium.dismissOffer}
+              onUpgrade={() => onUpgradeClick?.()}
+              isLoading={freemium.isExecuting}
+            />
+          )}
+
+          {/* Freemium Response Display */}
+          {freemium.freemiumResponse && (
+            <div className="mb-4">
+              <FreemiumResponse
+                type={freemium.freemiumResponse.type}
+                response={freemium.freemiumResponse.response}
+                onUpgrade={() => onUpgradeClick?.()}
+                onClose={freemium.clearResponse}
+              />
+            </div>
+          )}
+
           {/* Suggestions Dropdown */}
           {showSuggestions && (suggestions.length > 0 || isLoadingSuggestions) && (
             <div className="mb-2 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden shadow-xl">

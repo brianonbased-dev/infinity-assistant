@@ -5,7 +5,12 @@
  * Features: Search, Assist, Build
  * - Search: Knowledge base queries, research assistance
  * - Assist: Chat, code explanation, Q&A
- * - Build: Coming soon - code generation
+ * - Build: Architecture guidance (full generation via Builder)
+ *
+ * Uses uAA2++ 8-Phase Protocol for:
+ * - Phase-aware conversation context
+ * - Hierarchical memory with compression
+ * - Knowledge-rich responses
  *
  * All agent operations go through Master Portal for orchestration
  */
@@ -16,8 +21,8 @@ import { AgentCapabilityMode, UserTier, AgentExecutionContext } from '@/types/ag
 import { withOptionalRateLimit } from '@/middleware/apiRateLimit';
 import { getMasterPortalClient } from '@/services/MasterPortalClient';
 import { getUserService } from '@/services/UserService';
+import { getAssistantContextBuilder, getConversationMemoryService, getPhaseTransitionService, type WorkflowPhase } from '@/lib/knowledge';
 import logger from '@/utils/logger';
-import { getErrorMessage } from '@/utils/error-handling';
 
 interface UserPreferences {
   role?: string;
@@ -25,7 +30,9 @@ interface UserPreferences {
   primaryGoals?: string[];
   preferredMode?: 'search' | 'assist' | 'build';
   interests?: string[];
+  customInterests?: string[];
   communicationStyle?: 'concise' | 'detailed' | 'conversational';
+  workflowPhases?: WorkflowPhase[];
 }
 
 interface ChatRequest {
@@ -164,71 +171,85 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     // Process message with agent through Master Portal
     let agentResponse: string;
     let tokensUsed = 0;
+    let memoryStored = false;
+    let shouldAskToRemember = false;
+    let potentialMemoryContent = '';
 
     try {
-      // Enhance message based on mode and user preferences
-      let enhancedMessage = filteredRequest.message;
-      let systemContext = '';
+      // Process phase transition for training data
+      const phaseService = getPhaseTransitionService();
+      const userPhaseTransition = phaseService.processMessage(
+        activeConversationId,
+        filteredRequest.message,
+        'user'
+      );
 
-      // Build user context from preferences
-      let personalizedContext = '';
-      if (userContext) {
-        personalizedContext = userContext;
-      } else if (preferences) {
-        // Generate personalized context from preferences
-        const contextParts: string[] = [];
-
-        if (preferences.role) {
-          const roleDescriptions: Record<string, string> = {
-            developer: 'a software developer',
-            designer: 'a designer',
-            product_manager: 'a product manager',
-            data_analyst: 'a data analyst',
-            student: 'a student learning technology',
-            entrepreneur: 'an entrepreneur',
-            researcher: 'a researcher',
-            other: 'a professional',
-          };
-          contextParts.push(`The user is ${roleDescriptions[preferences.role] || preferences.role}.`);
-        }
-
-        if (preferences.experienceLevel) {
-          const expDescriptions: Record<string, string> = {
-            beginner: 'They are a beginner, so explain concepts clearly and avoid jargon.',
-            intermediate: 'They have intermediate experience, so balance detail with efficiency.',
-            advanced: 'They are advanced, so you can be technical and concise.',
-            expert: 'They are an expert, so be direct and skip basic explanations.',
-          };
-          contextParts.push(expDescriptions[preferences.experienceLevel] || '');
-        }
-
-        if (preferences.communicationStyle) {
-          const styleDescriptions: Record<string, string> = {
-            concise: 'Keep responses brief and to the point. Use bullet points when possible.',
-            detailed: 'Provide comprehensive explanations with examples and context.',
-            conversational: 'Be friendly and conversational while remaining helpful.',
-          };
-          contextParts.push(styleDescriptions[preferences.communicationStyle] || '');
-        }
-
-        if (preferences.interests && preferences.interests.length > 0) {
-          contextParts.push(`Their interests include: ${preferences.interests.join(', ')}.`);
-        }
-
-        if (contextParts.length > 0) {
-          personalizedContext = `\n\n[User Context: ${contextParts.join(' ')}]`;
-        }
+      // Log phase transition for training pipeline
+      if (userPhaseTransition) {
+        logger.debug('[Infinity Agent] Phase transition detected', {
+          conversationId: activeConversationId,
+          from: userPhaseTransition.previousPhase,
+          to: userPhaseTransition.newPhase,
+          confidence: userPhaseTransition.confidence,
+        });
       }
 
+      // Check for explicit memory commands
+      const memoryService = getConversationMemoryService();
+      const memoryIntent = memoryService.detectMemoryIntent(filteredRequest.message);
+
+      // Handle explicit "remember this" commands
+      if (memoryIntent.shouldStore && memoryIntent.extractedContent) {
+        await memoryService.storeExplicitKnowledge(
+          activeConversationId,
+          memoryIntent.extractedContent,
+          memoryIntent.type
+        );
+        memoryStored = true;
+      }
+
+      // Check if we should ask the user about remembering
+      if (memoryIntent.shouldAsk && memoryIntent.extractedContent) {
+        shouldAskToRemember = true;
+        potentialMemoryContent = memoryIntent.extractedContent;
+      }
+
+      // Build context using uAA2++ Knowledge Base
+      const contextBuilder = getAssistantContextBuilder();
+      const assistantContext = await contextBuilder.buildContext({
+        conversationId: activeConversationId,
+        userId,
+        message: filteredRequest.message,
+        mode: mode || 'assist',
+        preferences: preferences ? {
+          role: preferences.role,
+          experienceLevel: preferences.experienceLevel,
+          primaryGoals: preferences.primaryGoals,
+          preferredMode: preferences.preferredMode,
+          interests: preferences.interests,
+          customInterests: preferences.customInterests,
+          communicationStyle: preferences.communicationStyle,
+          workflowPhases: preferences.workflowPhases,
+        } : undefined,
+        includeKnowledge: true,
+      });
+
+      // Generate system prompt from context
+      const systemPrompt = contextBuilder.generateSystemPrompt(assistantContext);
+
+      // Enhance message with context
+      let enhancedMessage = filteredRequest.message;
+
+      // Add user-provided context if available
+      if (userContext) {
+        enhancedMessage = `${filteredRequest.message}\n\n[Additional Context: ${userContext}]`;
+      }
+
+      // Mode-specific message formatting
       if (mode === 'search') {
-        systemContext = 'You are in SEARCH mode. Focus on finding and presenting relevant information from the knowledge base.';
-        enhancedMessage = `[SEARCH MODE] User query: "${filteredRequest.message}"\n\nPlease search the knowledge base and provide relevant patterns, wisdom, and best practices.${personalizedContext}`;
+        enhancedMessage = `[SEARCH MODE] User query: "${filteredRequest.message}"\n\nPlease search the knowledge base and provide relevant patterns, wisdom, and best practices.`;
       } else if (mode === 'build') {
-        systemContext = 'You are in BUILD mode. Help users create applications, generate code, and design architectures.';
-        enhancedMessage = `[BUILD MODE] User wants to build: "${filteredRequest.message}"\n\nProvide guidance on architecture, code structure, and implementation approach.${personalizedContext}`;
-      } else {
-        systemContext = 'You are in ASSIST mode. Provide helpful, conversational assistance.';
-        enhancedMessage = `${filteredRequest.message}${personalizedContext}`;
+        enhancedMessage = `[BUILD MODE] User wants to build: "${filteredRequest.message}"\n\nProvide guidance on architecture, code structure, and implementation approach. Note: For full project generation and deployment, recommend Infinity Builder.`;
       }
 
       if (combinedSignal.aborted) {
@@ -241,12 +262,14 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         );
       }
 
-      // Call Master Portal to process query
+      // Prepend system prompt to message for knowledge-aware responses
+      const messageWithContext = `${systemPrompt}\n\n---\n\n${enhancedMessage}`;
+
+      // Call Master Portal to process query with enhanced context
       const masterPortal = getMasterPortalClient();
-      const result = await masterPortal.processCustomerQuery(enhancedMessage, {
+      const result = await masterPortal.processCustomerQuery(messageWithContext, {
         conversationId: activeConversationId,
         userId,
-        // Pass through the actual mode (search/assist/build) for proper handling
         mode: mode || 'assist',
         limitedCapabilities: context.allowedCapabilities,
       });
@@ -263,6 +286,26 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
 
       agentResponse = result.response || 'I apologize, but I was unable to process your request.';
       tokensUsed = result.tokensUsed || 0;
+
+      // Add memory confirmation to response if something was stored
+      if (memoryStored) {
+        agentResponse = `*I've stored that in my memory.*\n\n${agentResponse}`;
+      }
+
+      // Add memory suggestion if we detected something important
+      if (shouldAskToRemember && potentialMemoryContent) {
+        agentResponse = `${agentResponse}\n\n---\n*Would you like me to remember "${potentialMemoryContent}"? Just say "remember this" or "don't remember" to let me know.*`;
+      }
+
+      // Record response in memory for context continuity
+      await contextBuilder.recordResponse(activeConversationId, agentResponse);
+
+      // Process assistant response for phase tracking (training data)
+      phaseService.processMessage(
+        activeConversationId,
+        agentResponse,
+        'assistant'
+      );
     } catch (agentError: unknown) {
       if (agentError instanceof Error && agentError.name === 'AbortError') {
         return NextResponse.json(

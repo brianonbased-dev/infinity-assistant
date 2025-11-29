@@ -1,13 +1,23 @@
 /**
  * Infinity Assistant - Advanced Search API
  *
- * Provides advanced search capabilities for InfinityAssistant.io
- * All searches go through Master Portal for orchestration
+ * Provides search capabilities for InfinityAssistant.io
+ *
+ * FREE TIER: Basic knowledge base search
+ * - Searches existing W/P/G knowledge
+ * - If no results, triggers knowledge gap capture
+ * - User still gets an answer via quick research
+ * - Knowledge is created for future searches
+ *
+ * PRO TIER: Deep research with synthesis
+ * - Full web search + knowledge base
+ * - AI-powered synthesis
+ * - No restrictions
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { CapabilityLimiter } from '@/lib/capability-limiter';
-import { UserTier } from '@/types/agent-capabilities';
+import { UserTier, getRateLimitsForTier } from '@/types/agent-capabilities';
 import {
   KnowledgeItem,
   FormattedWisdomItem,
@@ -144,9 +154,45 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       gotchas: gotchaItems.slice(0, limit).map(formatGotchaItem),
     };
 
+    const totalResults = wisdomItems.length + patternItems.length + gotchaItems.length;
     const searchTime = Date.now() - startTime;
 
-    const response: SearchResponse = {
+    // FREE TIER: If no results found, trigger knowledge gap capture
+    // This researches the topic and creates knowledge for future searches
+    let gapResponse: { response?: string; gapId?: string; knowledgeCreated?: number } | null = null;
+
+    if (finalUserTier === 'free' && totalResults === 0) {
+      try {
+        // Call knowledge gap API to research and create knowledge
+        const gapResult = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/knowledge/gap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query.trim(),
+            userId: userId || 'anonymous',
+            source: 'free_search',
+          }),
+        });
+
+        if (gapResult.ok) {
+          gapResponse = await gapResult.json();
+          logger.info('[Search API] Knowledge gap captured', {
+            query: query.trim(),
+            gapId: gapResponse?.gapId,
+            knowledgeCreated: gapResponse?.knowledgeCreated,
+          });
+        }
+      } catch (gapError) {
+        // Non-blocking - search still returns
+        logger.warn('[Search API] Failed to capture knowledge gap:', gapError);
+      }
+    }
+
+    const response: SearchResponse & {
+      gapCaptured?: boolean;
+      generatedAnswer?: string;
+      knowledgeCreated?: number;
+    } = {
       success: true,
       query: query.trim(),
       results: formattedResults,
@@ -158,8 +204,14 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       },
       metadata: {
         searchTimeMs: searchTime,
-        sources: ['knowledge-base'],
+        sources: gapResponse ? ['knowledge-base', 'quick-research'] : ['knowledge-base'],
       },
+      // Include gap response data if available
+      ...(gapResponse && {
+        gapCaptured: true,
+        generatedAnswer: gapResponse.response,
+        knowledgeCreated: gapResponse.knowledgeCreated,
+      }),
     };
 
     return NextResponse.json(response, { status: 200 });

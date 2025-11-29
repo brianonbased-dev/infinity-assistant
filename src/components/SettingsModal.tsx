@@ -8,9 +8,27 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle } from 'lucide-react';
 import { UserPreferences } from '@/components/AssistantOnboarding';
+import type { MemoryEntry, CompressedMemory } from '@/lib/knowledge/types';
+
+/**
+ * UI-friendly memory format returned by the API
+ * Maps from ConversationMemory (activeMemory/compressedMemory) to this format
+ */
+interface UIConversationMemory {
+  recentMessages: Array<{
+    id: string;
+    type: string;
+    content: string;
+    importance: string;
+    tags?: string[];
+    timestamp: string;
+  }>;
+  compressedHistory: CompressedMemory[];
+  criticalFacts: MemoryEntry[];
+}
 
 interface SettingsModalProps {
   preferences: UserPreferences | null;
@@ -18,6 +36,7 @@ interface SettingsModalProps {
   onClose: () => void;
   syncEnabled: boolean;
   onSyncChange: (enabled: boolean) => void;
+  conversationId?: string;
 }
 
 const roleOptions = [
@@ -71,7 +90,9 @@ const defaultPreferences: UserPreferences = {
   primaryGoals: [],
   preferredMode: 'assist',
   interests: [],
+  customInterests: [],
   communicationStyle: 'conversational',
+  workflowPhases: ['research', 'plan', 'deliver'],
 };
 
 export function SettingsModal({
@@ -80,17 +101,106 @@ export function SettingsModal({
   onClose,
   syncEnabled,
   onSyncChange,
+  conversationId,
 }: SettingsModalProps) {
   const [editedPrefs, setEditedPrefs] = useState<UserPreferences>(
     preferences || defaultPreferences
   );
-  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'sync'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'memory' | 'sync'>('profile');
+
+  // Memory management state
+  const [memory, setMemory] = useState<UIConversationMemory | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
 
   useEffect(() => {
     if (preferences) {
       setEditedPrefs(preferences);
     }
   }, [preferences]);
+
+  // Load memory when switching to memory tab
+  const loadMemory = useCallback(async () => {
+    if (!conversationId) {
+      setMemoryError('No active conversation');
+      return;
+    }
+
+    setMemoryLoading(true);
+    setMemoryError(null);
+
+    try {
+      const response = await fetch(`/api/memory?conversationId=${conversationId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load memory');
+      }
+      const data = await response.json();
+      setMemory(data.memory);
+    } catch (error) {
+      console.error('Failed to load memory:', error);
+      setMemoryError('Failed to load conversation memory');
+    } finally {
+      setMemoryLoading(false);
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (activeTab === 'memory') {
+      loadMemory();
+    }
+  }, [activeTab, loadMemory]);
+
+  // Delete a critical fact
+  const deleteCriticalFact = async (factId: string) => {
+    if (!conversationId || !memory) return;
+
+    try {
+      const response = await fetch('/api/memory', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          type: 'critical',
+          entryId: factId,
+        }),
+      });
+
+      if (response.ok) {
+        setMemory({
+          ...memory,
+          criticalFacts: memory.criticalFacts.filter(f => f.id !== factId),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to delete fact:', error);
+    }
+  };
+
+  // Clear all memory
+  const clearAllMemory = async () => {
+    if (!conversationId) return;
+
+    if (!confirm('Are you sure you want to clear all conversation memory? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/memory', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          type: 'all',
+        }),
+      });
+
+      if (response.ok) {
+        setMemory(null);
+      }
+    } catch (error) {
+      console.error('Failed to clear memory:', error);
+    }
+  };
 
   const handleSave = () => {
     onSave(editedPrefs);
@@ -154,6 +264,17 @@ export function SettingsModal({
           >
             <MessageCircle className="w-4 h-4 inline mr-2" />
             Assistant
+          </button>
+          <button
+            onClick={() => setActiveTab('memory')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'memory'
+                ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/10'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Brain className="w-4 h-4 inline mr-2" />
+            Memory
           </button>
           <button
             onClick={() => setActiveTab('sync')}
@@ -357,6 +478,188 @@ export function SettingsModal({
                     "Responses will be friendly and engaging, like chatting with a knowledgeable friend who's happy to help."}
                 </p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'memory' && (
+            <div className="space-y-6">
+              {/* Memory Info Header */}
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Brain className="w-5 h-5 text-purple-400 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-purple-400">Conversation Memory</h4>
+                    <p className="text-sm text-gray-300 mt-1">
+                      The assistant remembers key facts and insights from your conversations.
+                      You can review and manage what&apos;s remembered here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {memoryLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+              )}
+
+              {memoryError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-red-400">Error Loading Memory</h4>
+                    <p className="text-sm text-gray-300 mt-1">{memoryError}</p>
+                  </div>
+                </div>
+              )}
+
+              {!memoryLoading && !memoryError && memory && (
+                <>
+                  {/* Critical Facts */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Lightbulb className="w-4 h-4 text-yellow-400" />
+                      <h4 className="font-medium text-gray-300">Critical Facts</h4>
+                      <span className="text-xs text-gray-500">({memory.criticalFacts.length})</span>
+                    </div>
+
+                    {memory.criticalFacts.length === 0 ? (
+                      <div className="bg-gray-800 rounded-lg p-4 text-center text-gray-500 text-sm">
+                        No critical facts stored yet. Important information from your conversations will appear here.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {memory.criticalFacts.map((fact) => (
+                          <div
+                            key={fact.id}
+                            className="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-start justify-between gap-3"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-300 line-clamp-2">{fact.content}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  fact.importance === 'critical'
+                                    ? 'bg-red-500/20 text-red-400'
+                                    : fact.importance === 'high'
+                                    ? 'bg-yellow-500/20 text-yellow-400'
+                                    : 'bg-gray-700 text-gray-400'
+                                }`}>
+                                  {fact.importance}
+                                </span>
+                                {fact.tags && fact.tags.length > 0 && (
+                                  <span className="text-xs text-gray-500">
+                                    {fact.tags.join(', ')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deleteCriticalFact(fact.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                              title="Remove this fact"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Compressed History */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileSearch className="w-4 h-4 text-blue-400" />
+                      <h4 className="font-medium text-gray-300">Compressed History</h4>
+                      <span className="text-xs text-gray-500">({memory.compressedHistory.length})</span>
+                    </div>
+
+                    {memory.compressedHistory.length === 0 ? (
+                      <div className="bg-gray-800 rounded-lg p-4 text-center text-gray-500 text-sm">
+                        No compressed history yet. Older conversations are summarized here to save space while preserving insights.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {memory.compressedHistory.map((segment, index) => (
+                          <div
+                            key={`segment-${index}`}
+                            className="bg-gray-800 rounded-lg p-3 border border-gray-700"
+                          >
+                            <p className="text-sm text-gray-300">{segment.summary}</p>
+                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                              <span>Messages: {segment.originalCount}</span>
+                              {segment.keyInsights && segment.keyInsights.length > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span>{segment.keyInsights.length} insights</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recent Messages Count */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-gray-300">Recent Messages</h4>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {memory.recentMessages.length} messages in active memory
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-purple-400">
+                          {memory.recentMessages.length}
+                        </div>
+                        <div className="text-xs text-gray-500">in context</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warning about gotchas */}
+                  {memory.compressedHistory.some(h => h.keyInsights?.some(i => i.startsWith('G:'))) && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-yellow-400">Gotchas Detected</h4>
+                        <p className="text-sm text-gray-300 mt-1">
+                          Some pitfalls and warnings were identified in past conversations.
+                          The assistant will remember these to help you avoid similar issues.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!memoryLoading && !memoryError && !memory && !conversationId && (
+                <div className="bg-gray-800 rounded-lg p-6 text-center">
+                  <Brain className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <h4 className="font-medium text-gray-400">No Active Conversation</h4>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Start a conversation to begin building memory.
+                  </p>
+                </div>
+              )}
+
+              {/* Clear All Memory */}
+              {memory && (memory.criticalFacts.length > 0 || memory.compressedHistory.length > 0) && (
+                <div className="pt-4 border-t border-gray-700">
+                  <button
+                    onClick={clearAllMemory}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Clear All Memory
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    This will remove all stored facts and compressed history. This cannot be undone.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

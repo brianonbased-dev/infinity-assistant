@@ -19,7 +19,54 @@ export enum AgentCapabilityMode {
   LIMITED = 'limited',
 }
 
-export type UserTier = 'free' | 'paid' | 'master';
+/**
+ * User subscription tiers
+ *
+ * FREE: Search only (basic knowledge base search, beneficial for knowledge gathering)
+ * ASSISTANT_PRO: Full Assistant (Search + Assist + Research)
+ * BUILDER_PRO: Full Assistant + Builder capabilities
+ * BUILDER_BUSINESS: Full Assistant + Builder + Team features
+ * BUILDER_ENTERPRISE: Everything + White Glove support
+ * MASTER: Internal system access
+ */
+export type UserTier =
+  | 'free'              // Search only
+  | 'assistant_pro'     // Assistant: Search + Assist + Research
+  | 'builder_pro'       // Builder: Full Assistant + Build capabilities
+  | 'builder_business'  // Builder: + Team features
+  | 'builder_enterprise' // Builder: + White Glove
+  | 'master';           // Internal/Admin
+
+// Legacy aliases for backwards compatibility
+export type LegacyUserTier = 'free' | 'paid' | 'master';
+
+/**
+ * Check if user has Assistant tier (Pro or higher)
+ */
+export function hasAssistantAccess(tier: UserTier): boolean {
+  return ['assistant_pro', 'builder_pro', 'builder_business', 'builder_enterprise', 'master'].includes(tier);
+}
+
+/**
+ * Check if user has Builder tier
+ */
+export function hasBuilderAccess(tier: UserTier): boolean {
+  return ['builder_pro', 'builder_business', 'builder_enterprise', 'master'].includes(tier);
+}
+
+/**
+ * Check if user has Business tier (team features)
+ */
+export function hasBusinessAccess(tier: UserTier): boolean {
+  return ['builder_business', 'builder_enterprise', 'master'].includes(tier);
+}
+
+/**
+ * Check if user has Enterprise tier (white glove)
+ */
+export function hasEnterpriseAccess(tier: UserTier): boolean {
+  return ['builder_enterprise', 'master'].includes(tier);
+}
 
 export interface AgentExecutionContext {
   /**
@@ -109,20 +156,77 @@ export const FULL_MODE_ONLY_CAPABILITIES: AgentCapability[] = [
  * Rate limits per tier
  */
 export const RATE_LIMITS = {
+  // Free tier: Search only
   FREE: {
     requests_per_day: 20,
     requests_per_hour: 10,
     concurrent_conversations: 1,
+    modes_allowed: ['search'] as const, // Only search mode
+    research_depth: 'basic' as const,   // Basic search, no deep research
   },
-  PAID: {
+  // Assistant Pro: Full search + assist
+  ASSISTANT_PRO: {
+    requests_per_day: 100,
+    requests_per_hour: 50,
+    concurrent_conversations: 3,
+    modes_allowed: ['search', 'assist'] as const, // Search + Assist (no build)
+    research_depth: 'deep' as const,              // Full research capabilities
+  },
+  // Builder Pro: Everything
+  BUILDER_PRO: {
     requests_per_day: -1, // unlimited
     requests_per_hour: 100,
     concurrent_conversations: 5,
+    modes_allowed: ['search', 'assist', 'build'] as const, // All modes
+    research_depth: 'comprehensive' as const,
   },
+  // Builder Business: Team features
+  BUILDER_BUSINESS: {
+    requests_per_day: -1, // unlimited
+    requests_per_hour: 200,
+    concurrent_conversations: 10,
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
+  // Builder Enterprise: White Glove
+  BUILDER_ENTERPRISE: {
+    requests_per_day: -1, // unlimited
+    requests_per_hour: -1, // unlimited
+    concurrent_conversations: -1, // unlimited
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
+  // Master: Internal
   MASTER: {
     requests_per_day: -1, // unlimited
     requests_per_hour: -1, // unlimited
     concurrent_conversations: -1, // unlimited
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
+  // Legacy paid tier (maps to assistant_pro)
+  PAID: {
+    requests_per_day: -1,
+    requests_per_hour: 100,
+    concurrent_conversations: 5,
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'deep' as const,
   },
 } as const;
+
+/**
+ * Get rate limits for a tier
+ */
+export function getRateLimitsForTier(tier: UserTier) {
+  const tierKey = tier.toUpperCase().replace('-', '_') as keyof typeof RATE_LIMITS;
+  return RATE_LIMITS[tierKey] || RATE_LIMITS.FREE;
+}
+
+/**
+ * Check if a mode is allowed for a tier
+ */
+export function isModeAllowedForTier(tier: UserTier, mode: 'search' | 'assist' | 'build'): boolean {
+  const limits = getRateLimitsForTier(tier);
+  return (limits.modes_allowed as readonly string[]).includes(mode);
+}
 
