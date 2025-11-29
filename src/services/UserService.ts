@@ -4,14 +4,9 @@
  * Manages user data, tiers, and usage tracking
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { UserTier } from '@/types/agent-capabilities';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 export class UserService {
   /**
@@ -32,8 +27,9 @@ export class UserService {
     today.setHours(0, 0, 0, 0);
 
     try {
+      const supabase = getSupabaseClient();
       const { count, error } = await supabase
-        .from('infinity_assistant_usage')
+        .from(TABLES.USAGE)
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('created_at', today.toISOString());
@@ -59,7 +55,8 @@ export class UserService {
     tokensUsed: number = 0
   ): Promise<void> {
     try {
-      await supabase.from('infinity_assistant_usage').insert({
+      const supabase = getSupabaseClient();
+      await supabase.from(TABLES.USAGE).insert({
         user_id: userId,
         conversation_id: conversationId,
         tokens_used: tokensUsed,
@@ -79,8 +76,9 @@ export class UserService {
     }
 
     try {
+      const supabase = getSupabaseClient();
       const { data, error } = await supabase
-        .from('infinity_assistant_users')
+        .from(TABLES.USERS)
         .select('tier')
         .eq('user_id', userId)
         .single();
@@ -105,4 +103,3 @@ export function getUserService(): UserService {
   }
   return userService;
 }
-

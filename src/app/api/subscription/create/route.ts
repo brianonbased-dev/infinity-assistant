@@ -5,29 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { auth } from '@clerk/nextjs/server';
+import { getStripeClient, STRIPE_PRICE_IDS } from '@/lib/stripe';
 import logger from '@/utils/logger';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
-
-// Price IDs for each tier (configure in Stripe Dashboard)
-const PRICE_IDS: Record<string, { monthly: string; annual: string }> = {
-  pro: {
-    monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_pro_monthly',
-    annual: process.env.STRIPE_PRICE_PRO_ANNUAL || 'price_pro_annual',
-  },
-  business: {
-    monthly: process.env.STRIPE_PRICE_BUSINESS_MONTHLY || 'price_business_monthly',
-    annual: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || 'price_business_annual',
-  },
-  enterprise: {
-    monthly: process.env.STRIPE_PRICE_ENTERPRISE || 'price_enterprise',
-    annual: process.env.STRIPE_PRICE_ENTERPRISE || 'price_enterprise',
-  },
-};
 
 interface CreateSubscriptionRequest {
   tier: 'pro' | 'business' | 'enterprise';
@@ -47,11 +27,12 @@ export async function POST(request: NextRequest) {
     const body: CreateSubscriptionRequest = await request.json();
     const { tier, interval, successUrl, cancelUrl } = body;
 
-    if (!tier || !PRICE_IDS[tier]) {
+    if (!tier || !STRIPE_PRICE_IDS[tier]) {
       return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
     }
 
-    const priceId = PRICE_IDS[tier][interval || 'monthly'];
+    const stripe = getStripeClient();
+    const priceId = STRIPE_PRICE_IDS[tier][interval || 'monthly'];
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://infinityassistant.io';
 
     const session = await stripe.checkout.sessions.create({

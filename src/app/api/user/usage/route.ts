@@ -2,25 +2,13 @@
  * User Usage API
  *
  * Track and retrieve user usage statistics
+ * Optimized to reduce database queries (fixed N+1 pattern)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { getSupabaseClient, TABLES, getUsageLimits } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
-
-// Usage limits per tier
-const USAGE_LIMITS: Record<string, { daily: number; monthly: number }> = {
-  free: { daily: 10, monthly: 100 },
-  pro: { daily: 100, monthly: 3000 },
-  business: { daily: 500, monthly: 15000 },
-  enterprise: { daily: -1, monthly: -1 }, // Unlimited
-};
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,53 +16,67 @@ export async function GET(request: NextRequest) {
     const anonUserId = request.cookies.get('infinity_anon_user')?.value;
     const effectiveUserId = userId || anonUserId;
 
+    const defaultLimits = getUsageLimits('free');
+
     if (!effectiveUserId) {
       return NextResponse.json({
         usage: { today: 0, thisMonth: 0 },
-        limits: USAGE_LIMITS.free,
+        limits: defaultLimits,
         tier: 'free',
+        remaining: {
+          daily: defaultLimits.daily,
+          monthly: defaultLimits.monthly,
+        },
       });
     }
 
-    // Get user's tier
-    const { data: subscription } = await supabase
-      .from('infinity_assistant_subscriptions')
-      .select('tier')
-      .eq('user_id', effectiveUserId)
-      .single();
+    const supabase = getSupabaseClient();
 
-    const tier = subscription?.tier || 'free';
-    const limits = USAGE_LIMITS[tier] || USAGE_LIMITS.free;
-
-    // Get today's usage
+    // Calculate date boundaries
     const today = new Date().toISOString().split('T')[0];
-    const { count: todayCount } = await supabase
-      .from('infinity_assistant_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', effectiveUserId)
-      .gte('created_at', `${today}T00:00:00Z`);
-
-    // Get this month's usage
     const firstOfMonth = new Date();
     firstOfMonth.setDate(1);
     firstOfMonth.setHours(0, 0, 0, 0);
 
-    const { count: monthCount } = await supabase
-      .from('infinity_assistant_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', effectiveUserId)
-      .gte('created_at', firstOfMonth.toISOString());
+    // Execute all queries in parallel to reduce latency (fixes N+1 pattern)
+    const [subscriptionResult, todayUsageResult, monthUsageResult] = await Promise.all([
+      // Get user's tier
+      supabase
+        .from(TABLES.SUBSCRIPTIONS)
+        .select('tier')
+        .eq('user_id', effectiveUserId)
+        .single(),
+
+      // Get today's usage count
+      supabase
+        .from(TABLES.USAGE)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', effectiveUserId)
+        .gte('created_at', `${today}T00:00:00Z`),
+
+      // Get this month's usage count
+      supabase
+        .from(TABLES.USAGE)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', effectiveUserId)
+        .gte('created_at', firstOfMonth.toISOString()),
+    ]);
+
+    const tier = subscriptionResult.data?.tier || 'free';
+    const limits = getUsageLimits(tier);
+    const todayCount = todayUsageResult.count || 0;
+    const monthCount = monthUsageResult.count || 0;
 
     return NextResponse.json({
       usage: {
-        today: todayCount || 0,
-        thisMonth: monthCount || 0,
+        today: todayCount,
+        thisMonth: monthCount,
       },
       limits,
       tier,
       remaining: {
-        daily: limits.daily === -1 ? -1 : Math.max(0, limits.daily - (todayCount || 0)),
-        monthly: limits.monthly === -1 ? -1 : Math.max(0, limits.monthly - (monthCount || 0)),
+        daily: limits.daily === -1 ? -1 : Math.max(0, limits.daily - todayCount),
+        monthly: limits.monthly === -1 ? -1 : Math.max(0, limits.monthly - monthCount),
       },
     });
   } catch (error) {

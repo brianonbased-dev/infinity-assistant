@@ -5,19 +5,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { getStripeClient } from '@/lib/stripe';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,9 +18,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    const supabase = getSupabaseClient();
+    const stripe = getStripeClient();
+
     // Get customer ID from subscription record
     const { data: subscription, error } = await supabase
-      .from('infinity_assistant_subscriptions')
+      .from(TABLES.SUBSCRIPTIONS)
       .select('stripe_customer_id')
       .eq('user_id', userId)
       .single();

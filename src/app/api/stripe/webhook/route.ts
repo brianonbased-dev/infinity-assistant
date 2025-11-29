@@ -6,17 +6,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getStripeClient, mapPriceToTier } from '@/lib/stripe';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -26,6 +18,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
   }
 
+  const stripe = getStripeClient();
+  const supabase = getSupabaseClient();
   let event: Stripe.Event;
 
   try {
@@ -44,34 +38,116 @@ export async function POST(request: NextRequest) {
   try {
     switch (event.type) {
       // Checkout events
-      case 'checkout.session.completed':
-        await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.metadata?.userId;
+        const tier = session.metadata?.tier || 'pro';
+
+        if (userId) {
+          await supabase.from(TABLES.SUBSCRIPTIONS).upsert({
+            user_id: userId,
+            stripe_customer_id: session.customer as string,
+            stripe_subscription_id: session.subscription as string,
+            tier: tier,
+            status: 'active',
+            current_period_start: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          logger.info(`[Stripe Webhook] Checkout completed for user ${userId}, tier: ${tier}`);
+        } else {
+          logger.warn('[Stripe Webhook] No userId in checkout session metadata');
+        }
         break;
+      }
 
       // Subscription events
       case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+
+        const { data: userSub } = await supabase
+          .from(TABLES.SUBSCRIPTIONS)
+          .select('user_id')
+          .eq('stripe_customer_id', customerId)
+          .single();
+
+        if (userSub) {
+          const tier = mapPriceToTier(subscription.items.data[0]?.price?.id);
+          await supabase.from(TABLES.SUBSCRIPTIONS).update({
+            tier: tier,
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            updated_at: new Date().toISOString(),
+          }).eq('stripe_customer_id', customerId);
+          logger.info(`[Stripe Webhook] Subscription updated for customer ${customerId}`);
+        } else {
+          logger.warn(`[Stripe Webhook] No user found for customer ${customerId}`);
+        }
         break;
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+        await supabase.from(TABLES.SUBSCRIPTIONS).update({
+          tier: 'free',
+          status: 'canceled',
+          updated_at: new Date().toISOString(),
+        }).eq('stripe_customer_id', customerId);
+        logger.info(`[Stripe Webhook] Subscription deleted for customer ${customerId}`);
         break;
+      }
 
       // Invoice events
-      case 'invoice.paid':
-        await handleInvoicePaid(event.data.object as Stripe.Invoice);
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        await supabase.from(TABLES.PAYMENTS).insert({
+          stripe_customer_id: customerId,
+          stripe_invoice_id: invoice.id,
+          amount: invoice.amount_paid,
+          currency: invoice.currency,
+          status: 'paid',
+          created_at: new Date().toISOString(),
+        });
+        logger.info(`[Stripe Webhook] Invoice paid: ${invoice.id}`);
         break;
-      case 'invoice.payment_failed':
-        await handleInvoiceFailed(event.data.object as Stripe.Invoice);
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        await supabase.from(TABLES.PAYMENTS).insert({
+          stripe_customer_id: customerId,
+          stripe_invoice_id: invoice.id,
+          amount: invoice.amount_due,
+          currency: invoice.currency,
+          status: 'failed',
+          created_at: new Date().toISOString(),
+        });
+        await supabase.from(TABLES.SUBSCRIPTIONS).update({
+          status: 'past_due',
+          updated_at: new Date().toISOString(),
+        }).eq('stripe_customer_id', customerId);
+        logger.info(`[Stripe Webhook] Invoice failed: ${invoice.id}`);
         break;
+      }
 
       // Payment intent events
-      case 'payment_intent.succeeded':
-        await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent);
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        logger.info(`[Stripe Webhook] Payment succeeded: ${paymentIntent.id}`);
         break;
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+      }
+
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        logger.error(`[Stripe Webhook] Payment failed: ${paymentIntent.id}`);
         break;
+      }
 
       default:
         logger.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
@@ -82,123 +158,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[Stripe Webhook] Error processing ${event.type}:`, error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
-}
-
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const userId = session.metadata?.userId;
-  const tier = session.metadata?.tier || 'pro';
-
-  if (!userId) {
-    logger.warn('[Stripe Webhook] No userId in checkout session metadata');
-    return;
-  }
-
-  await supabase.from('infinity_assistant_subscriptions').upsert({
-    user_id: userId,
-    stripe_customer_id: session.customer as string,
-    stripe_subscription_id: session.subscription as string,
-    tier: tier,
-    status: 'active',
-    current_period_start: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  logger.info(`[Stripe Webhook] Checkout completed for user ${userId}, tier: ${tier}`);
-}
-
-async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
-  const customerId = subscription.customer as string;
-
-  // Find user by customer ID
-  const { data: userSub } = await supabase
-    .from('infinity_assistant_subscriptions')
-    .select('user_id')
-    .eq('stripe_customer_id', customerId)
-    .single();
-
-  if (!userSub) {
-    logger.warn(`[Stripe Webhook] No user found for customer ${customerId}`);
-    return;
-  }
-
-  const tier = mapPriceToTier(subscription.items.data[0]?.price?.id);
-
-  await supabase.from('infinity_assistant_subscriptions').update({
-    tier: tier,
-    status: subscription.status,
-    current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    updated_at: new Date().toISOString(),
-  }).eq('stripe_customer_id', customerId);
-
-  logger.info(`[Stripe Webhook] Subscription updated for customer ${customerId}`);
-}
-
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  const customerId = subscription.customer as string;
-
-  await supabase.from('infinity_assistant_subscriptions').update({
-    tier: 'free',
-    status: 'canceled',
-    updated_at: new Date().toISOString(),
-  }).eq('stripe_customer_id', customerId);
-
-  logger.info(`[Stripe Webhook] Subscription deleted for customer ${customerId}`);
-}
-
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  const customerId = invoice.customer as string;
-
-  await supabase.from('infinity_assistant_payments').insert({
-    stripe_customer_id: customerId,
-    stripe_invoice_id: invoice.id,
-    amount: invoice.amount_paid,
-    currency: invoice.currency,
-    status: 'paid',
-    created_at: new Date().toISOString(),
-  });
-
-  logger.info(`[Stripe Webhook] Invoice paid: ${invoice.id}`);
-}
-
-async function handleInvoiceFailed(invoice: Stripe.Invoice) {
-  const customerId = invoice.customer as string;
-
-  await supabase.from('infinity_assistant_payments').insert({
-    stripe_customer_id: customerId,
-    stripe_invoice_id: invoice.id,
-    amount: invoice.amount_due,
-    currency: invoice.currency,
-    status: 'failed',
-    created_at: new Date().toISOString(),
-  });
-
-  // Update subscription status
-  await supabase.from('infinity_assistant_subscriptions').update({
-    status: 'past_due',
-    updated_at: new Date().toISOString(),
-  }).eq('stripe_customer_id', customerId);
-
-  logger.info(`[Stripe Webhook] Invoice failed: ${invoice.id}`);
-}
-
-async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  logger.info(`[Stripe Webhook] Payment succeeded: ${paymentIntent.id}`);
-}
-
-async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
-  logger.error(`[Stripe Webhook] Payment failed: ${paymentIntent.id}`);
-}
-
-function mapPriceToTier(priceId: string | undefined): string {
-  const priceTierMap: Record<string, string> = {
-    // Add your Stripe price IDs here
-    'price_pro_monthly': 'pro',
-    'price_pro_annual': 'pro',
-    'price_business_monthly': 'business',
-    'price_business_annual': 'business',
-    'price_enterprise': 'enterprise',
-  };
-  return priceTierMap[priceId || ''] || 'pro';
 }

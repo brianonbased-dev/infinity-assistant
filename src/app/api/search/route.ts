@@ -7,12 +7,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { CapabilityLimiter } from '@/lib/capability-limiter';
-import { AgentCapabilityMode, UserTier } from '@/types/agent-capabilities';
+import { UserTier } from '@/types/agent-capabilities';
+import {
+  KnowledgeItem,
+  FormattedWisdomItem,
+  FormattedPatternItem,
+  FormattedGotchaItem,
+  SearchSuggestion,
+} from '@/types/knowledge';
 import { withOptionalRateLimit } from '@/middleware/apiRateLimit';
 import { getMasterPortalClient } from '@/services/MasterPortalClient';
-import { getUserService } from '@/services/UserService';
 import logger from '@/utils/logger';
-import { getErrorMessage } from '@/utils/error-handling';
 
 interface SearchRequest {
   query: string;
@@ -28,27 +33,9 @@ interface SearchResponse {
   success: boolean;
   query: string;
   results: {
-    wisdom: Array<{
-      id: string;
-      title: string;
-      content: string;
-      score: number;
-      source: string;
-    }>;
-    patterns: Array<{
-      id: string;
-      name: string;
-      description: string;
-      score: number;
-      domain: string;
-    }>;
-    gotchas: Array<{
-      id: string;
-      title: string;
-      content: string;
-      score: number;
-      source: string;
-    }>;
+    wisdom: FormattedWisdomItem[];
+    patterns: FormattedPatternItem[];
+    gotchas: FormattedGotchaItem[];
   };
   counts: {
     total: number;
@@ -59,6 +46,45 @@ interface SearchResponse {
   metadata: {
     searchTimeMs: number;
     sources: string[];
+  };
+}
+
+/**
+ * Format a knowledge item as a wisdom result
+ */
+function formatWisdomItem(item: KnowledgeItem): FormattedWisdomItem {
+  return {
+    id: item.id,
+    title: item.metadata?.title || 'Wisdom',
+    content: item.content,
+    score: item.score,
+    source: item.source,
+  };
+}
+
+/**
+ * Format a knowledge item as a pattern result
+ */
+function formatPatternItem(item: KnowledgeItem): FormattedPatternItem {
+  return {
+    id: item.id,
+    name: item.metadata?.title || item.metadata?.pattern_id || 'Pattern',
+    description: item.content,
+    score: item.score,
+    domain: item.metadata?.domain || 'general',
+  };
+}
+
+/**
+ * Format a knowledge item as a gotcha result
+ */
+function formatGotchaItem(item: KnowledgeItem): FormattedGotchaItem {
+  return {
+    id: item.id,
+    title: item.metadata?.title || 'Gotcha',
+    content: item.content,
+    score: item.score,
+    source: item.source,
   };
 }
 
@@ -90,11 +116,10 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     // Get user tier
-    const userService = getUserService();
     const finalUserTier = userTier || 'free';
 
-    // Create execution context
-    const context = await CapabilityLimiter.getPublicContext(
+    // Create execution context (validates capabilities)
+    await CapabilityLimiter.getPublicContext(
       userId || 'anonymous',
       finalUserTier
     );
@@ -108,29 +133,15 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       tags,
     });
 
-    // Format results for public API
+    // Format results for public API with proper typing
+    const wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
+    const patternItems = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
+    const gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
+
     const formattedResults: SearchResponse['results'] = {
-      wisdom: (knowledgeResult.grouped?.wisdom || []).slice(0, limit).map((item: any) => ({
-        id: item.id,
-        title: item.metadata?.title || 'Wisdom',
-        content: item.content,
-        score: item.score,
-        source: item.source,
-      })),
-      patterns: (knowledgeResult.grouped?.patterns || []).slice(0, limit).map((item: any) => ({
-        id: item.id,
-        name: item.metadata?.title || item.metadata?.pattern_id || 'Pattern',
-        description: item.content,
-        score: item.score,
-        domain: item.metadata?.domain || 'general',
-      })),
-      gotchas: (knowledgeResult.grouped?.gotchas || []).slice(0, limit).map((item: any) => ({
-        id: item.id,
-        title: item.metadata?.title || 'Gotcha',
-        content: item.content,
-        score: item.score,
-        source: item.source,
-      })),
+      wisdom: wisdomItems.slice(0, limit).map(formatWisdomItem),
+      patterns: patternItems.slice(0, limit).map(formatPatternItem),
+      gotchas: gotchaItems.slice(0, limit).map(formatGotchaItem),
     };
 
     const searchTime = Date.now() - startTime;
@@ -194,16 +205,12 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
       type: 'all',
     });
 
-    // Extract suggestions from results
-    const suggestions: Array<{
-      text: string;
-      type: 'pattern' | 'wisdom' | 'gotcha' | 'query';
-      score: number;
-      metadata?: Record<string, any>;
-    }> = [];
+    // Extract suggestions from results with proper typing
+    const suggestions: SearchSuggestion[] = [];
 
     // Add pattern names
-    (knowledgeResult.grouped?.patterns || []).slice(0, limit).forEach((pattern: any) => {
+    const patterns = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
+    patterns.slice(0, limit).forEach((pattern: KnowledgeItem) => {
       const title = pattern.metadata?.title || pattern.metadata?.pattern_id || pattern.content?.substring(0, 50);
       if (title && !suggestions.find((s) => s.text === title)) {
         suggestions.push({
@@ -219,7 +226,8 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
     });
 
     // Add wisdom titles
-    (knowledgeResult.grouped?.wisdom || []).slice(0, limit).forEach((wisdom: any) => {
+    const wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
+    wisdomItems.slice(0, limit).forEach((wisdom: KnowledgeItem) => {
       const title = wisdom.metadata?.title || wisdom.content?.substring(0, 50);
       if (title && !suggestions.find((s) => s.text === title)) {
         suggestions.push({
@@ -234,7 +242,8 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
     });
 
     // Add gotcha titles
-    (knowledgeResult.grouped?.gotchas || []).slice(0, limit).forEach((gotcha: any) => {
+    const gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
+    gotchaItems.slice(0, limit).forEach((gotcha: KnowledgeItem) => {
       const title = gotcha.metadata?.title || gotcha.content?.substring(0, 50);
       if (title && !suggestions.find((s) => s.text === title)) {
         suggestions.push({
@@ -250,7 +259,7 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
 
     // Sort by score and limit
     const sortedSuggestions = suggestions
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, limit)
       .map((s) => ({
         text: s.text,
@@ -270,14 +279,15 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
   } catch (error: unknown) {
     logger.error('[Assistant Search Suggestions] Error:', error);
 
+    // Return proper error status instead of 200
     return NextResponse.json(
       {
-        success: true,
+        success: false,
         suggestions: [],
         query: '',
         error: 'Failed to load suggestions',
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 });
