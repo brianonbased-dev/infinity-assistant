@@ -5,14 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 interface FeedbackRequest {
   type: 'bug' | 'feature' | 'improvement' | 'general';
@@ -39,7 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message too long (max 5000 chars)' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('infinity_assistant_feedback').insert({
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from(TABLES.FEEDBACK).insert({
       user_id: effectiveUserId,
       type: type || 'general',
       message: message.trim(),

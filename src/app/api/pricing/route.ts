@@ -5,13 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 interface PricingTier {
   id: string;
@@ -34,8 +29,9 @@ export async function GET(request: NextRequest) {
     const product = searchParams.get('product');
     const tier = searchParams.get('tier');
 
+    const supabase = getSupabaseClient();
     let query = supabase
-      .from('pricing_tiers')
+      .from(TABLES.PRICING_TIERS)
       .select('*')
       .eq('is_active', true)
       .order('monthly_price', { ascending: true });

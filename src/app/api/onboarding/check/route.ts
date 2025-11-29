@@ -5,15 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getUserService } from '@/services/UserService';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-import { getErrorMessage } from '@/utils/error-handling';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,9 +17,11 @@ export async function GET(request: NextRequest) {
       request.cookies.get('infinity_anon_user')?.value
     );
 
+    const supabase = getSupabaseClient();
+
     // Check if user has completed onboarding
     const { data: onboarding, error: onboardingError } = await supabase
-      .from('assistant_onboarding')
+      .from(TABLES.ONBOARDING)
       .select('*')
       .eq('user_id', userId)
       .single();
@@ -36,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Check if user has any previous conversations
     const { count: conversationCount, error: conversationError } = await supabase
-      .from('assistant_conversations')
+      .from(TABLES.CONVERSATIONS)
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);
 

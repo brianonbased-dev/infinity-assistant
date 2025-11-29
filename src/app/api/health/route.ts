@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 
 export async function GET() {
   const checks: Record<string, { status: string; latency?: number }> = {};
@@ -14,11 +14,8 @@ export async function GET() {
   // Check Supabase connection
   try {
     const start = Date.now();
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.UAA2_SUPABASE_SERVICE_KEY!
-    );
-    await supabase.from('user_preferences').select('user_id').limit(1);
+    const supabase = getSupabaseClient();
+    await supabase.from(TABLES.USER_PREFERENCES).select('user_id').limit(1);
     checks.supabase = { status: 'healthy', latency: Date.now() - start };
   } catch {
     checks.supabase = { status: 'unhealthy' };

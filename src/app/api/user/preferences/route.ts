@@ -5,14 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 interface UserPreferences {
   role?: string;
@@ -38,8 +33,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ preferences: {} });
     }
 
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
-      .from('infinity_assistant_preferences')
+      .from(TABLES.PREFERENCES)
       .select('preferences')
       .eq('user_id', effectiveUserId)
       .single();
@@ -73,8 +69,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid preferences' }, { status: 400 });
     }
 
+    const supabase = getSupabaseClient();
     const { error } = await supabase
-      .from('infinity_assistant_preferences')
+      .from(TABLES.PREFERENCES)
       .upsert({
         user_id: effectiveUserId,
         preferences,

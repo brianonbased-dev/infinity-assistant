@@ -5,14 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,8 +21,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const supabase = getSupabaseClient();
     const { data: subscription, error } = await supabase
-      .from('infinity_assistant_subscriptions')
+      .from(TABLES.SUBSCRIPTIONS)
       .select('*')
       .eq('user_id', userId)
       .single();

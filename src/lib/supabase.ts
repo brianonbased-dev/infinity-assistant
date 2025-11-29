@@ -15,14 +15,15 @@ let supabaseInstance: SupabaseClient | null = null;
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseInstance) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.UAA2_SUPABASE_SERVICE_KEY;
+    // Support both naming conventions for flexibility
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.UAA2_SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl) {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
     }
 
     if (!supabaseKey) {
-      throw new Error('UAA2_SUPABASE_SERVICE_KEY environment variable is not set');
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY environment variable is not set');
     }
 
     supabaseInstance = createClient(supabaseUrl, supabaseKey, {

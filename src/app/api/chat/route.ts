@@ -354,14 +354,11 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
   }
 
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.UAA2_SUPABASE_SERVICE_KEY!
-    );
+    const { getSupabaseClient, TABLES } = await import('@/lib/supabase');
+    const supabase = getSupabaseClient();
 
     const { data, error } = await supabase
-      .from('infinity_assistant_conversations')
+      .from(TABLES.CONVERSATIONS)
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)

@@ -5,14 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 import { getErrorMessage } from '@/utils/error-handling';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.UAA2_SUPABASE_SERVICE_KEY!
-);
 
 // User preferences collected during onboarding
 interface UserPreferences {
@@ -42,9 +37,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
+
     // Check if onboarding record exists
     const { data: existing } = await supabase
-      .from('assistant_onboarding')
+      .from(TABLES.ONBOARDING)
       .select('*')
       .eq('user_id', userId)
       .single();
@@ -59,7 +56,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // Update existing record
       const { data, error } = await supabase
-        .from('assistant_onboarding')
+        .from(TABLES.ONBOARDING)
         .update(onboardingData)
         .eq('user_id', userId)
         .select()
@@ -77,7 +74,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new record
       const { data, error } = await supabase
-        .from('assistant_onboarding')
+        .from(TABLES.ONBOARDING)
         .insert({
           user_id: userId,
           ...onboardingData,
@@ -107,4 +104,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
