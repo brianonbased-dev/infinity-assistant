@@ -2,12 +2,12 @@
  * Beta Wrapper Service
  *
  * Manages the beta period for Infinity Assistant.
- * During beta (2 weeks from launch), all features are FREE.
+ * During beta (3 days from launch), all features are FREE.
  * After beta expires, users must subscribe to continue using pro features.
  *
  * BETA PERIOD:
  * - Start: December 1, 2024
- * - End: December 15, 2024 (2 weeks)
+ * - End: December 3, 2024 (3 days)
  *
  * BETA FEATURES:
  * - All search protocols (quick, standard, deep, comprehensive)
@@ -28,7 +28,7 @@
 const BETA_CONFIG = {
   // Beta period dates
   START_DATE: new Date('2024-12-01T00:00:00Z'),
-  END_DATE: new Date('2024-12-15T23:59:59Z'),
+  END_DATE: new Date('2024-12-03T23:59:59Z'),
 
   // Beta version identifier
   VERSION: '1.0.0-beta',
@@ -58,7 +58,7 @@ const BETA_CONFIG = {
   // Beta badge text
   BADGE_TEXT: 'BETA',
   BANNER_TEXT: 'Welcome to the Infinity Assistant Beta! All features are FREE during the beta period.',
-  EXPIRY_WARNING_DAYS: 3, // Show warning 3 days before beta ends
+  EXPIRY_WARNING_DAYS: 1, // Show warning 1 day before beta ends
 };
 
 export type BetaTier = 'beta_full_access';
