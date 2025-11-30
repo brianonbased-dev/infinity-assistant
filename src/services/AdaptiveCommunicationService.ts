@@ -98,6 +98,265 @@ function saveSpeakerData(userId: string, data: StoredSpeakerData): void {
 }
 
 // ============================================================================
+// HYBRID STORAGE SERVICE (Database + File)
+// ============================================================================
+
+/**
+ * Hybrid storage for speaker profiles
+ * - Database: Fast online access, real-time sync
+ * - File: Offline backup, user-editable
+ */
+class HybridSpeakerStorage {
+  private supabase: SupabaseClient | null = null;
+  private isOnline: boolean = true;
+
+  /**
+   * Initialize with Supabase client
+   */
+  async initialize(): Promise<void> {
+    try {
+      // Dynamic import to avoid issues in different environments
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      this.supabase = getSupabaseClient();
+      this.isOnline = true;
+    } catch (error) {
+      console.warn('[HybridStorage] Database not available, using file-only mode:', error);
+      this.isOnline = false;
+    }
+  }
+
+  /**
+   * Load speakers - try database first, fall back to file
+   */
+  async loadSpeakers(userId: string): Promise<Map<string, SpeakerProfile>> {
+    const speakers = new Map<string, SpeakerProfile>();
+
+    // Try database first if online
+    if (this.isOnline && this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('infinity_speaker_profiles')
+          .select('*')
+          .eq('user_id', userId);
+
+        if (!error && data) {
+          for (const row of data) {
+            speakers.set(row.id, this.rowToProfile(row));
+          }
+          console.log(`[HybridStorage] Loaded ${data.length} speakers from database`);
+          return speakers;
+        }
+      } catch (e) {
+        console.warn('[HybridStorage] Database load failed, using file:', e);
+      }
+    }
+
+    // Fall back to file storage
+    const fileData = loadSpeakerData(userId);
+    if (fileData) {
+      for (const [id, profile] of Object.entries(fileData.speakers)) {
+        profile.firstSeen = new Date(profile.firstSeen);
+        profile.lastSeen = new Date(profile.lastSeen);
+        speakers.set(id, profile);
+      }
+      console.log(`[HybridStorage] Loaded ${speakers.size} speakers from file`);
+    }
+
+    return speakers;
+  }
+
+  /**
+   * Save speaker - write to both database and file
+   */
+  async saveSpeaker(userId: string, profile: SpeakerProfile): Promise<void> {
+    // Save to database if online
+    if (this.isOnline && this.supabase) {
+      try {
+        const row = this.profileToRow(userId, profile);
+        const { error } = await this.supabase
+          .from('infinity_speaker_profiles')
+          .upsert(row, { onConflict: 'id' });
+
+        if (error) {
+          console.warn('[HybridStorage] Database save failed:', error);
+        }
+      } catch (e) {
+        console.warn('[HybridStorage] Database save error:', e);
+      }
+    }
+
+    // Always save to file as backup (will be triggered by saveUserSpeakers)
+  }
+
+  /**
+   * Sync file to database (for offline changes)
+   */
+  async syncFileToDatabase(userId: string): Promise<{ synced: number; errors: string[] }> {
+    const errors: string[] = [];
+    let synced = 0;
+
+    if (!this.isOnline || !this.supabase) {
+      errors.push('Database not available');
+      return { synced, errors };
+    }
+
+    const fileData = loadSpeakerData(userId);
+    if (!fileData) {
+      return { synced, errors };
+    }
+
+    for (const [id, profile] of Object.entries(fileData.speakers)) {
+      try {
+        profile.firstSeen = new Date(profile.firstSeen);
+        profile.lastSeen = new Date(profile.lastSeen);
+        const row = this.profileToRow(userId, profile);
+
+        const { error } = await this.supabase
+          .from('infinity_speaker_profiles')
+          .upsert(row, { onConflict: 'id' });
+
+        if (error) {
+          errors.push(`Failed to sync ${id}: ${error.message}`);
+        } else {
+          synced++;
+        }
+      } catch (e) {
+        errors.push(`Error syncing ${id}: ${e}`);
+      }
+    }
+
+    return { synced, errors };
+  }
+
+  /**
+   * Sync database to file (refresh file with latest)
+   */
+  async syncDatabaseToFile(userId: string): Promise<void> {
+    if (!this.isOnline || !this.supabase) return;
+
+    try {
+      const { data, error } = await this.supabase
+        .from('infinity_speaker_profiles')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (!error && data) {
+        const speakers: Record<string, SpeakerProfile> = {};
+        const familyMembers: string[] = [];
+
+        for (const row of data) {
+          const profile = this.rowToProfile(row);
+          speakers[row.id] = profile;
+          if (profile.relationship) {
+            familyMembers.push(row.id);
+          }
+        }
+
+        const fileData: StoredSpeakerData = {
+          version: '1.0.0',
+          lastUpdated: new Date().toISOString(),
+          speakers,
+          familyMembers,
+        };
+
+        saveSpeakerData(userId, fileData);
+        console.log(`[HybridStorage] Synced ${data.length} speakers to file`);
+      }
+    } catch (e) {
+      console.warn('[HybridStorage] Failed to sync to file:', e);
+    }
+  }
+
+  /**
+   * Convert database row to SpeakerProfile
+   */
+  private rowToProfile(row: Record<string, unknown>): SpeakerProfile {
+    const fp = row.style_fingerprint as Record<string, unknown> | null;
+    return {
+      id: row.id as string,
+      name: row.name as string | undefined,
+      nickname: row.nickname as string | undefined,
+      relationship: row.relationship as string | undefined,
+      detectedLanguage: (row.detected_language as SupportedLanguage) || 'en',
+      preferredLanguage: row.preferred_language as SupportedLanguage | undefined,
+      communicationStyle: (row.communication_style as CommunicationStyle) || 'friendly',
+      vocabularyLevel: (row.vocabulary_level as VocabularyLevel) || 'intermediate',
+      formalityLevel: (row.formality_level as FormalityLevel) || 'neutral',
+      estimatedAge: (row.estimated_age as 'child' | 'teen' | 'adult' | 'senior') || 'adult',
+      messageCount: (row.message_count as number) || 0,
+      firstSeen: new Date(row.first_seen as string),
+      lastSeen: new Date(row.last_seen as string),
+      confidence: (row.confidence as number) || 0.5,
+      styleFingerprint: {
+        avgWordLength: (fp?.avgWordLength as number) || 0,
+        avgMessageLength: (fp?.avgMessageLength as number) || 0,
+        punctuationStyle: (fp?.punctuationStyle as string) || 'standard',
+        emojiUsage: (fp?.emojiUsage as string) || 'rare',
+        greetingStyle: fp?.greetingStyle as string | undefined,
+        signaturePatterns: (fp?.signaturePatterns as string[]) || [],
+      },
+      interests: (row.interests as string[]) || [],
+      rememberedFacts: (row.remembered_facts as string[]) || [],
+    };
+  }
+
+  /**
+   * Convert SpeakerProfile to database row
+   */
+  private profileToRow(userId: string, profile: SpeakerProfile): Record<string, unknown> {
+    return {
+      id: profile.id,
+      user_id: userId,
+      name: profile.name || null,
+      nickname: profile.nickname || null,
+      relationship: profile.relationship || null,
+      detected_language: profile.detectedLanguage,
+      preferred_language: profile.preferredLanguage || null,
+      estimated_age: profile.estimatedAge || 'adult',
+      communication_style: profile.communicationStyle,
+      vocabulary_level: profile.vocabularyLevel,
+      formality_level: profile.formalityLevel,
+      style_fingerprint: {
+        avgWordLength: profile.styleFingerprint.avgWordLength,
+        avgMessageLength: profile.styleFingerprint.avgMessageLength,
+        punctuationStyle: profile.styleFingerprint.punctuationStyle,
+        emojiUsage: profile.styleFingerprint.emojiUsage,
+        greetingStyle: profile.styleFingerprint.greetingStyle,
+        signaturePatterns: profile.styleFingerprint.signaturePatterns,
+      },
+      interests: profile.interests,
+      remembered_facts: profile.rememberedFacts,
+      message_count: profile.messageCount,
+      confidence: profile.confidence,
+      first_seen: profile.firstSeen.toISOString(),
+      last_seen: profile.lastSeen.toISOString(),
+      needs_file_sync: false, // We're syncing now
+    };
+  }
+}
+
+// Supabase client type (imported dynamically)
+type SupabaseClient = {
+  from: (table: string) => {
+    select: (columns?: string) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+    upsert: (data: Record<string, unknown>, options?: { onConflict?: string }) => Promise<{ error: { message: string } | null }>;
+    eq: (column: string, value: string) => {
+      select: (columns?: string) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>;
+    };
+  };
+};
+
+// Singleton hybrid storage
+let hybridStorage: HybridSpeakerStorage | null = null;
+
+function getHybridStorage(): HybridSpeakerStorage {
+  if (!hybridStorage) {
+    hybridStorage = new HybridSpeakerStorage();
+  }
+  return hybridStorage;
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
