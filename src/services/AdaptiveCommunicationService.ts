@@ -349,11 +349,19 @@ type SupabaseClient = {
 // Singleton hybrid storage
 let hybridStorage: HybridSpeakerStorage | null = null;
 
-function getHybridStorage(): HybridSpeakerStorage {
+export function getHybridStorage(): HybridSpeakerStorage {
   if (!hybridStorage) {
     hybridStorage = new HybridSpeakerStorage();
   }
   return hybridStorage;
+}
+
+/**
+ * Initialize hybrid storage (call on app startup)
+ */
+export async function initializeHybridStorage(): Promise<void> {
+  const storage = getHybridStorage();
+  await storage.initialize();
 }
 
 // ============================================================================
@@ -573,9 +581,91 @@ class AdaptiveCommunicationService {
   private loadedUsers: Set<string> = new Set(); // Track which users' data we've loaded
   private readonly MAX_HISTORY = 10;
   private currentUserId: string = 'default';
+  private hybridInitialized: boolean = false;
+
+  // ============================================================================
+  // HYBRID STORAGE METHODS (Database + File)
+  // ============================================================================
 
   /**
-   * Load speaker profiles from file storage for a user
+   * Initialize hybrid storage (async - call on app startup)
+   */
+  async initializeHybrid(): Promise<void> {
+    if (this.hybridInitialized) return;
+    const storage = getHybridStorage();
+    await storage.initialize();
+    this.hybridInitialized = true;
+    console.log('[AdaptiveCommunication] Hybrid storage initialized');
+  }
+
+  /**
+   * Load speaker profiles using hybrid storage (database first, file fallback)
+   */
+  async loadUserSpeakersHybrid(userId: string): Promise<void> {
+    if (this.loadedUsers.has(userId)) return;
+
+    // Ensure hybrid is initialized
+    if (!this.hybridInitialized) {
+      await this.initializeHybrid();
+    }
+
+    const storage = getHybridStorage();
+    const speakers = await storage.loadSpeakers(userId);
+
+    // Copy to internal map
+    for (const [id, profile] of speakers) {
+      this.knownSpeakers.set(id, profile);
+    }
+
+    this.loadedUsers.add(userId);
+    this.currentUserId = userId;
+    console.log(`[AdaptiveCommunication] Loaded ${speakers.size} speakers for user ${userId} (hybrid)`);
+  }
+
+  /**
+   * Save speaker to hybrid storage (database + file)
+   */
+  async saveSpeakerHybrid(profile: SpeakerProfile): Promise<void> {
+    const storage = getHybridStorage();
+    await storage.saveSpeaker(this.currentUserId, profile);
+    // Also update local map
+    this.knownSpeakers.set(profile.id, profile);
+    // Trigger file save
+    this.saveUserSpeakers(this.currentUserId);
+  }
+
+  /**
+   * Sync file changes to database (for offline edits)
+   */
+  async syncFileToDatabase(): Promise<{ synced: number; errors: string[] }> {
+    const storage = getHybridStorage();
+    return storage.syncFileToDatabase(this.currentUserId);
+  }
+
+  /**
+   * Sync database to file (refresh local file with latest)
+   */
+  async syncDatabaseToFile(): Promise<void> {
+    const storage = getHybridStorage();
+    await storage.syncDatabaseToFile(this.currentUserId);
+    // Reload into memory
+    this.loadedUsers.delete(this.currentUserId);
+    await this.loadUserSpeakersHybrid(this.currentUserId);
+  }
+
+  /**
+   * Force full sync (both directions)
+   */
+  async fullSync(): Promise<{ synced: number; errors: string[] }> {
+    // First sync file changes to database
+    const result = await this.syncFileToDatabase();
+    // Then refresh file from database (gets latest from all sources)
+    await this.syncDatabaseToFile();
+    return result;
+  }
+
+  /**
+   * Load speaker profiles from file storage for a user (sync fallback)
    */
   loadUserSpeakers(userId: string): void {
     if (this.loadedUsers.has(userId)) return; // Already loaded
@@ -634,6 +724,39 @@ class AdaptiveCommunicationService {
   /**
    * Identify who is speaking based on voice metadata and/or text patterns
    * This is the main entry point for voice recognition
+   * Uses hybrid storage (database + file) for persistence
+   */
+  async identifySpeakerAsync(
+    sessionId: string,
+    message: string,
+    userId?: string,
+    voiceMetadata?: {
+      pitchHz?: number;
+      speakingRate?: number;
+      voiceId?: string;
+    }
+  ): Promise<VoiceRecognitionResult> {
+    // Load user's speakers if not already loaded
+    if (userId && !this.loadedUsers.has(userId)) {
+      await this.loadUserSpeakersHybrid(userId);
+    }
+
+    const result = this.identifySpeaker(sessionId, message, voiceMetadata);
+
+    // Persist changes to hybrid storage
+    if (result.matchedProfile) {
+      // Fire and forget - don't block on save
+      this.saveSpeakerHybrid(result.matchedProfile).catch(e =>
+        console.warn('[AdaptiveCommunication] Background save failed:', e)
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Identify who is speaking based on voice metadata and/or text patterns
+   * Sync version - uses file storage only
    */
   identifySpeaker(
     sessionId: string,
@@ -690,6 +813,9 @@ class AdaptiveCommunicationService {
       context.familyMode = true;
     }
     this.contexts.set(sessionId, context);
+
+    // Save to file storage (sync)
+    this.saveUserSpeakers(this.currentUserId);
 
     return {
       speakerId,
@@ -1703,4 +1829,15 @@ export function getAdaptiveCommunicationService(): AdaptiveCommunicationService 
   return serviceInstance;
 }
 
+/**
+ * Initialize the service with hybrid storage (call on app startup)
+ * This enables database + file dual storage for speaker profiles
+ */
+export async function initializeAdaptiveCommunication(): Promise<AdaptiveCommunicationService> {
+  const service = getAdaptiveCommunicationService();
+  await service.initializeHybrid();
+  return service;
+}
+
 export default AdaptiveCommunicationService;
+export { HybridSpeakerStorage };
