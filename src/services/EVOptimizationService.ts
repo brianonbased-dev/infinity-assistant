@@ -1,4 +1,20 @@
 /**
+ * @deprecated This service is deprecated. Use `EVOptimizationServiceV2` or `@/lib/EV` instead.
+ *
+ * Migration:
+ * ```typescript
+ * // OLD
+ * import { getEVOptimizationService } from '@/services/EVOptimizationService';
+ *
+ * // NEW
+ * import { evOptimizationService } from '@/services/EVOptimizationServiceV2';
+ * // Or use the unified EV service:
+ * import { evService } from '@/lib/EV';
+ * ```
+ *
+ * See `src/services/DEPRECATED.md` for full migration guide.
+ *
+ * ---
  * EV Optimization Service for Infinity Assistant
  *
  * Provides intelligent electric vehicle optimization including:

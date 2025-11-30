@@ -1,4 +1,22 @@
 /**
+ * @deprecated This service is deprecated. Use `@/lib/EV` instead.
+ *
+ * Migration:
+ * ```typescript
+ * // OLD
+ * import { getTeslaIntegrationService } from '@/services/TeslaIntegrationService';
+ * const tesla = getTeslaIntegrationService();
+ *
+ * // NEW
+ * import { evService } from '@/lib/EV';
+ * // Or for Tesla-specific adapter:
+ * import { getAdapter } from '@/lib/EV';
+ * const tesla = getAdapter('tesla');
+ * ```
+ *
+ * See `src/services/DEPRECATED.md` for full migration guide.
+ *
+ * ---
  * Tesla Integration Service for Infinity Assistant
  *
  * Official Tesla Fleet API integration for:

@@ -1,4 +1,21 @@
 /**
+ * @deprecated This service is deprecated. Use `@/lib/EventBus` with `@/lib/EV` instead.
+ *
+ * Migration:
+ * ```typescript
+ * // OLD
+ * import { getEVUpdateScheduler } from '@/services/EVUpdateScheduler';
+ * scheduler.on('vehicle.update', handler);
+ *
+ * // NEW
+ * import { eventBus } from '@/lib/EventBus';
+ * import { evService } from '@/lib/EV';
+ * eventBus.on('vehicle.status_updated', handler);
+ * ```
+ *
+ * See `src/services/DEPRECATED.md` for full migration guide.
+ *
+ * ---
  * EV Update Scheduler for Infinity Assistant
  *
  * Provides continuous, real-time updates for all connected EVs:
