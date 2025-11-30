@@ -9,7 +9,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle } from 'lucide-react';
+import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages } from 'lucide-react';
 import { UserPreferences } from '@/components/AssistantOnboarding';
 import type { MemoryEntry, CompressedMemory } from '@/lib/knowledge/types';
 
@@ -28,6 +28,35 @@ interface UIConversationMemory {
   }>;
   compressedHistory: CompressedMemory[];
   criticalFacts: MemoryEntry[];
+}
+
+/**
+ * Speaker profile for voice/family recognition
+ */
+interface SpeakerProfile {
+  id: string;
+  name?: string;
+  nickname?: string;
+  relationship?: string;
+  preferredLanguage?: string;
+  estimatedAge?: 'child' | 'teen' | 'adult' | 'senior';
+  messageCount: number;
+  firstSeen: string;
+  lastSeen: string;
+  interests: string[];
+  rememberedFacts: string[];
+}
+
+/**
+ * Essence/personality configuration
+ */
+interface EssenceConfig {
+  voiceTone: 'friendly' | 'professional' | 'playful' | 'supportive' | 'neutral';
+  responseStyle: 'concise' | 'detailed' | 'balanced';
+  personalityTraits: string[];
+  customGreeting?: string;
+  familyMode: boolean;
+  childSafetyLevel: 'open' | 'family' | 'strict';
 }
 
 interface SettingsModalProps {
@@ -106,18 +135,59 @@ export function SettingsModal({
   const [editedPrefs, setEditedPrefs] = useState<UserPreferences>(
     preferences || defaultPreferences
   );
-  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'memory' | 'sync'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'voice' | 'memory' | 'sync'>('profile');
 
   // Memory management state
   const [memory, setMemory] = useState<UIConversationMemory | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState<string | null>(null);
 
+  // Voice/Family management state
+  const [speakers, setSpeakers] = useState<SpeakerProfile[]>([]);
+  const [speakersLoading, setSpeakersLoading] = useState(false);
+  const [speakersError, setSpeakersError] = useState<string | null>(null);
+  const [editingSpeaker, setEditingSpeaker] = useState<string | null>(null);
+  const [editedSpeaker, setEditedSpeaker] = useState<Partial<SpeakerProfile>>({});
+
+  // Essence/personality settings
+  const [essence, setEssence] = useState<EssenceConfig>({
+    voiceTone: 'friendly',
+    responseStyle: 'balanced',
+    personalityTraits: [],
+    familyMode: false,
+    childSafetyLevel: 'family',
+  });
+
   useEffect(() => {
     if (preferences) {
       setEditedPrefs(preferences);
     }
   }, [preferences]);
+
+  // Load speakers when switching to voice tab
+  const loadSpeakers = useCallback(async () => {
+    setSpeakersLoading(true);
+    setSpeakersError(null);
+
+    try {
+      const response = await fetch('/api/speakers');
+      if (!response.ok) {
+        throw new Error('Failed to load speakers');
+      }
+      const data = await response.json();
+      setSpeakers(data.speakers || []);
+
+      // Also load essence config
+      if (data.essence) {
+        setEssence(data.essence);
+      }
+    } catch (error) {
+      console.error('Failed to load speakers:', error);
+      setSpeakersError('Failed to load voice profiles');
+    } finally {
+      setSpeakersLoading(false);
+    }
+  }, []);
 
   // Load memory when switching to memory tab
   const loadMemory = useCallback(async () => {
@@ -148,7 +218,69 @@ export function SettingsModal({
     if (activeTab === 'memory') {
       loadMemory();
     }
-  }, [activeTab, loadMemory]);
+    if (activeTab === 'voice') {
+      loadSpeakers();
+    }
+  }, [activeTab, loadMemory, loadSpeakers]);
+
+  // Update a speaker profile
+  const updateSpeakerProfile = async (speakerId: string, updates: Partial<SpeakerProfile>) => {
+    try {
+      const response = await fetch('/api/speakers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speakerId, updates }),
+      });
+
+      if (response.ok) {
+        setSpeakers(prev => prev.map(s =>
+          s.id === speakerId ? { ...s, ...updates } : s
+        ));
+        setEditingSpeaker(null);
+        setEditedSpeaker({});
+      }
+    } catch (error) {
+      console.error('Failed to update speaker:', error);
+    }
+  };
+
+  // Delete a speaker profile
+  const deleteSpeakerProfile = async (speakerId: string) => {
+    if (!confirm('Remove this family member profile? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/speakers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speakerId }),
+      });
+
+      if (response.ok) {
+        setSpeakers(prev => prev.filter(s => s.id !== speakerId));
+      }
+    } catch (error) {
+      console.error('Failed to delete speaker:', error);
+    }
+  };
+
+  // Save essence configuration
+  const saveEssenceConfig = async (config: EssenceConfig) => {
+    try {
+      const response = await fetch('/api/speakers/essence', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+
+      if (response.ok) {
+        setEssence(config);
+      }
+    } catch (error) {
+      console.error('Failed to save essence config:', error);
+    }
+  };
 
   // Delete a critical fact
   const deleteCriticalFact = async (factId: string) => {
@@ -264,6 +396,17 @@ export function SettingsModal({
           >
             <MessageCircle className="w-4 h-4 inline mr-2" />
             Assistant
+          </button>
+          <button
+            onClick={() => setActiveTab('voice')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'voice'
+                ? 'text-purple-400 border-b-2 border-purple-400 bg-purple-500/10'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Users className="w-4 h-4 inline mr-2" />
+            Voice
           </button>
           <button
             onClick={() => setActiveTab('memory')}
@@ -478,6 +621,310 @@ export function SettingsModal({
                     "Responses will be friendly and engaging, like chatting with a knowledgeable friend who's happy to help."}
                 </p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'voice' && (
+            <div className="space-y-6">
+              {/* Voice/Family Info Header */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Users className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-400">Voice & Family Recognition</h4>
+                    <p className="text-sm text-gray-300 mt-1">
+                      Infinity learns to recognize different family members and adapts its communication style naturally.
+                      Manage profiles and customize how Infinity responds to each person.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {speakersLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              )}
+
+              {speakersError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-red-400">Error Loading Profiles</h4>
+                    <p className="text-sm text-gray-300 mt-1">{speakersError}</p>
+                  </div>
+                </div>
+              )}
+
+              {!speakersLoading && !speakersError && (
+                <>
+                  {/* Essence Configuration */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Mic className="w-4 h-4 text-purple-400" />
+                      <h4 className="font-medium text-gray-300">Assistant Essence</h4>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-4">
+                      {/* Voice Tone */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-2">Voice Tone</label>
+                        <div className="flex flex-wrap gap-2">
+                          {(['friendly', 'professional', 'playful', 'supportive', 'neutral'] as const).map((tone) => (
+                            <button
+                              key={tone}
+                              onClick={() => {
+                                const newEssence = { ...essence, voiceTone: tone };
+                                setEssence(newEssence);
+                                saveEssenceConfig(newEssence);
+                              }}
+                              className={`px-3 py-1.5 rounded-full text-xs capitalize transition-all ${
+                                essence.voiceTone === tone
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                              }`}
+                            >
+                              {tone}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Family Mode Toggle */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                        <div>
+                          <h5 className="text-sm font-medium text-gray-300">Family Mode</h5>
+                          <p className="text-xs text-gray-500">Auto-adapt for children and family members</p>
+                        </div>
+                        <button
+                          type="button"
+                          title="Toggle family mode"
+                          onClick={() => {
+                            const newEssence = { ...essence, familyMode: !essence.familyMode };
+                            setEssence(newEssence);
+                            saveEssenceConfig(newEssence);
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-colors ${
+                            essence.familyMode ? 'bg-blue-600' : 'bg-gray-600'
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                              essence.familyMode ? 'translate-x-7' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Child Safety Level */}
+                      {essence.familyMode && (
+                        <div className="pt-2">
+                          <label className="block text-xs text-gray-400 mb-2">Child Safety Level</label>
+                          <div className="flex gap-2">
+                            {(['open', 'family', 'strict'] as const).map((level) => (
+                              <button
+                                key={level}
+                                onClick={() => {
+                                  const newEssence = { ...essence, childSafetyLevel: level };
+                                  setEssence(newEssence);
+                                  saveEssenceConfig(newEssence);
+                                }}
+                                className={`flex-1 px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                                  essence.childSafetyLevel === level
+                                    ? level === 'strict' ? 'bg-red-600/30 text-red-400 border border-red-500'
+                                    : level === 'family' ? 'bg-blue-600/30 text-blue-400 border border-blue-500'
+                                    : 'bg-green-600/30 text-green-400 border border-green-500'
+                                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-transparent'
+                                }`}
+                              >
+                                {level}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Family Members */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-blue-400" />
+                        <h4 className="font-medium text-gray-300">Recognized Speakers</h4>
+                        <span className="text-xs text-gray-500">({speakers.length})</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingSpeaker('new');
+                          setEditedSpeaker({ name: '', relationship: '', estimatedAge: 'adult' });
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add
+                      </button>
+                    </div>
+
+                    {speakers.length === 0 ? (
+                      <div className="bg-gray-800 rounded-lg p-6 text-center">
+                        <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                        <h4 className="text-sm font-medium text-gray-400">No Profiles Yet</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Infinity will automatically learn to recognize different speakers as they interact.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {speakers.map((speaker) => (
+                          <div
+                            key={speaker.id}
+                            className="bg-gray-800 rounded-lg p-3 border border-gray-700"
+                          >
+                            {editingSpeaker === speaker.id ? (
+                              // Edit mode
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    type="text"
+                                    value={editedSpeaker.name || ''}
+                                    onChange={(e) => setEditedSpeaker({ ...editedSpeaker, name: e.target.value })}
+                                    placeholder="Name"
+                                    className="px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={editedSpeaker.nickname || ''}
+                                    onChange={(e) => setEditedSpeaker({ ...editedSpeaker, nickname: e.target.value })}
+                                    placeholder="Nickname"
+                                    className="px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <select
+                                    value={editedSpeaker.relationship || ''}
+                                    onChange={(e) => setEditedSpeaker({ ...editedSpeaker, relationship: e.target.value })}
+                                    className="px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                    title="Select relationship"
+                                  >
+                                    <option value="">Relationship</option>
+                                    <option value="parent">Parent</option>
+                                    <option value="child">Child</option>
+                                    <option value="grandparent">Grandparent</option>
+                                    <option value="friend">Friend</option>
+                                    <option value="other">Other</option>
+                                  </select>
+                                  <select
+                                    value={editedSpeaker.estimatedAge || 'adult'}
+                                    onChange={(e) => setEditedSpeaker({ ...editedSpeaker, estimatedAge: e.target.value as SpeakerProfile['estimatedAge'] })}
+                                    className="px-2 py-1.5 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                                    title="Select age group"
+                                  >
+                                    <option value="child">Child</option>
+                                    <option value="teen">Teen</option>
+                                    <option value="adult">Adult</option>
+                                    <option value="senior">Senior</option>
+                                  </select>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingSpeaker(null);
+                                      setEditedSpeaker({});
+                                    }}
+                                    className="px-3 py-1 text-xs text-gray-400 hover:text-white"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => updateSpeakerProfile(speaker.id, editedSpeaker)}
+                                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              // View mode
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-white">
+                                      {speaker.name || speaker.nickname || 'Unknown'}
+                                    </span>
+                                    {speaker.relationship && (
+                                      <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                                        {speaker.relationship}
+                                      </span>
+                                    )}
+                                    {speaker.estimatedAge && speaker.estimatedAge !== 'adult' && (
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                        speaker.estimatedAge === 'child' ? 'bg-green-500/20 text-green-400' :
+                                        speaker.estimatedAge === 'teen' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-purple-500/20 text-purple-400'
+                                      }`}>
+                                        {speaker.estimatedAge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                    <span>{speaker.messageCount} messages</span>
+                                    {speaker.preferredLanguage && speaker.preferredLanguage !== 'en' && (
+                                      <span className="flex items-center gap-1">
+                                        <Languages className="w-3 h-3" />
+                                        {speaker.preferredLanguage.toUpperCase()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    title="Edit profile"
+                                    onClick={() => {
+                                      setEditingSpeaker(speaker.id);
+                                      setEditedSpeaker({
+                                        name: speaker.name,
+                                        nickname: speaker.nickname,
+                                        relationship: speaker.relationship,
+                                        estimatedAge: speaker.estimatedAge,
+                                      });
+                                    }}
+                                    className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Delete profile"
+                                    onClick={() => deleteSpeakerProfile(speaker.id)}
+                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Language Preferences */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Languages className="w-4 h-4 text-green-400" />
+                      <h4 className="text-sm font-medium text-gray-300">Language Detection</h4>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Infinity automatically detects when you or family members speak in different languages
+                      and responds bilingually. Currently supporting: English, Spanish, French, German, Italian,
+                      Portuguese, Japanese, Korean, Chinese, and Arabic.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
