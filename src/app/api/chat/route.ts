@@ -23,6 +23,8 @@ import { getMasterPortalClient } from '@/services/MasterPortalClient';
 import { getUserService } from '@/services/UserService';
 import { getAssistantContextBuilder, getConversationMemoryService, getPhaseTransitionService, type WorkflowPhase } from '@/lib/knowledge';
 import { detectLanguage, generateBilingualPrompt, type SupportedLanguage } from '@/services/BilingualService';
+import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/services/AdaptiveCommunicationService';
+import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
 import logger from '@/utils/logger';
 
 interface UserPreferences {
@@ -45,6 +47,8 @@ interface ChatRequest {
   mode?: 'search' | 'assist' | 'build';
   userContext?: string;
   preferences?: UserPreferences;
+  essence?: EssenceConfig;
+  sessionId?: string; // For speaker recognition continuity
 }
 
 interface ChatResponse {
@@ -100,7 +104,7 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     const body: ChatRequest = await request.json();
-    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode, userContext, preferences } = body;
+    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode, userContext, preferences, essence, sessionId } = body;
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -257,6 +261,72 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       if (detectedLanguage !== 'en') {
         const bilingualPrompt = generateBilingualPrompt(detectedLanguage);
         systemPrompt = `${systemPrompt}${bilingualPrompt}`;
+      }
+
+      // Speaker recognition and adaptive communication
+      let speakerRecognition: VoiceRecognitionResult | null = null;
+      let speakerGreeting = '';
+      try {
+        const adaptiveService = getAdaptiveCommunicationService();
+        // Use session ID for speaker continuity, fallback to conversation ID
+        const speakerSessionId = sessionId || activeConversationId;
+
+        // Identify speaker from message patterns
+        speakerRecognition = adaptiveService.identifySpeaker(
+          speakerSessionId,
+          filteredRequest.message
+        );
+
+        // If this is a new voice or returning speaker, include greeting
+        if (speakerRecognition.isNewVoice || speakerRecognition.speakerName) {
+          speakerGreeting = speakerRecognition.suggestedGreeting;
+
+          // Log speaker recognition for analytics
+          logger.debug('[Infinity Agent] Speaker recognized:', {
+            speakerId: speakerRecognition.speakerId,
+            speakerName: speakerRecognition.speakerName,
+            ageGroup: speakerRecognition.ageGroup,
+            confidence: speakerRecognition.confidence,
+            isNewVoice: speakerRecognition.isNewVoice,
+          });
+        }
+
+        // Add speaker context to system prompt if we have a profile
+        if (speakerRecognition.matchedProfile) {
+          const profile = speakerRecognition.matchedProfile;
+          const speakerContext = [];
+
+          if (profile.name) {
+            speakerContext.push(`Speaking with: ${profile.name}`);
+          }
+          if (profile.estimatedAge && profile.estimatedAge !== 'adult') {
+            speakerContext.push(`Age group: ${profile.estimatedAge}`);
+          }
+          if (profile.communicationStyle) {
+            speakerContext.push(`Prefers ${profile.communicationStyle} communication`);
+          }
+          if (profile.rememberedFacts && profile.rememberedFacts.length > 0) {
+            speakerContext.push(`Remember: ${profile.rememberedFacts.slice(0, 3).join('; ')}`);
+          }
+
+          if (speakerContext.length > 0) {
+            systemPrompt = `${systemPrompt}\n\n[Speaker Context: ${speakerContext.join('. ')}]`;
+          }
+        }
+      } catch (speakerError) {
+        logger.debug('[Infinity Agent] Speaker recognition skipped:', speakerError);
+      }
+
+      // Add essence/personality configuration to system prompt
+      if (essence) {
+        const essencePrompt = generateEssencePrompt(essence);
+        systemPrompt = `${systemPrompt}${essencePrompt}`;
+
+        logger.debug('[Infinity Agent] Essence config applied:', {
+          voiceTone: essence.voiceTone,
+          familyMode: essence.familyMode,
+          childSafetyLevel: essence.childSafetyLevel,
+        });
       }
 
       // Enhance message with context
