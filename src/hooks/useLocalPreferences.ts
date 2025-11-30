@@ -16,6 +16,7 @@ export interface UserPreferences {
   customInterests: string[]; // User-added technologies
   communicationStyle: 'concise' | 'detailed' | 'conversational';
   workflowPhases: ('research' | 'plan' | 'deliver')[]; // Preferred workflow phases
+  preferredLanguage: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh' | 'ar'; // Bilingual support
 }
 
 const PREFERENCES_KEY = 'infinity_user_preferences';
@@ -30,6 +31,7 @@ const defaultPreferences: UserPreferences = {
   customInterests: [],
   communicationStyle: 'conversational',
   workflowPhases: ['research', 'plan', 'deliver'],
+  preferredLanguage: 'en', // Default to English, auto-detect will update
 };
 
 interface UseLocalPreferencesReturn {
@@ -251,6 +253,23 @@ export function generatePreferencesPrompt(preferences: UserPreferences | null): 
       .map((g) => goalDescriptions[g] || g)
       .join(', ');
     parts.push(`They are focused on: ${goalTexts}.`);
+  }
+
+  // Language preference - bilingual support
+  if (preferences.preferredLanguage && preferences.preferredLanguage !== 'en') {
+    const languageNames: Record<string, string> = {
+      es: 'Spanish',
+      fr: 'French',
+      de: 'German',
+      it: 'Italian',
+      pt: 'Portuguese',
+      ja: 'Japanese',
+      ko: 'Korean',
+      zh: 'Chinese',
+      ar: 'Arabic',
+    };
+    const langName = languageNames[preferences.preferredLanguage] || preferences.preferredLanguage;
+    parts.push(`IMPORTANT: The user prefers ${langName}. Respond bilingually - first in ${langName}, then in English after a "---" separator.`);
   }
 
   if (parts.length === 0) return '';

@@ -22,6 +22,7 @@ import { withOptionalRateLimit } from '@/middleware/apiRateLimit';
 import { getMasterPortalClient } from '@/services/MasterPortalClient';
 import { getUserService } from '@/services/UserService';
 import { getAssistantContextBuilder, getConversationMemoryService, getPhaseTransitionService, type WorkflowPhase } from '@/lib/knowledge';
+import { detectLanguage, generateBilingualPrompt, type SupportedLanguage } from '@/services/BilingualService';
 import logger from '@/utils/logger';
 
 interface UserPreferences {
@@ -33,6 +34,7 @@ interface UserPreferences {
   customInterests?: string[];
   communicationStyle?: 'concise' | 'detailed' | 'conversational';
   workflowPhases?: WorkflowPhase[];
+  preferredLanguage?: SupportedLanguage;
 }
 
 interface ChatRequest {
@@ -235,7 +237,27 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       });
 
       // Generate system prompt from context
-      const systemPrompt = contextBuilder.generateSystemPrompt(assistantContext);
+      let systemPrompt = contextBuilder.generateSystemPrompt(assistantContext);
+
+      // Detect language and add bilingual support
+      let detectedLanguage: SupportedLanguage = preferences?.preferredLanguage || 'en';
+      if (!preferences?.preferredLanguage || preferences.preferredLanguage === 'en') {
+        // Auto-detect language from message
+        const detection = detectLanguage(filteredRequest.message);
+        if (detection.confidence > 0.6 && detection.language !== 'en') {
+          detectedLanguage = detection.language;
+          logger.debug('[Infinity Agent] Detected language:', {
+            language: detectedLanguage,
+            confidence: detection.confidence,
+          });
+        }
+      }
+
+      // Add bilingual prompt if non-English
+      if (detectedLanguage !== 'en') {
+        const bilingualPrompt = generateBilingualPrompt(detectedLanguage);
+        systemPrompt = `${systemPrompt}${bilingualPrompt}`;
+      }
 
       // Enhance message with context
       let enhancedMessage = filteredRequest.message;
