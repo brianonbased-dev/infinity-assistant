@@ -27,6 +27,78 @@ import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/
 import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
 import logger from '@/utils/logger';
 
+// ============================================================================
+// ETHICS & VALUES INTEGRATION
+// ============================================================================
+
+interface EthicsContext {
+  familyMode?: boolean;
+  childSafetyLevel?: 'open' | 'family' | 'strict';
+  professionalMode?: boolean;
+}
+
+/**
+ * Generate ethics-aware system prompt for value-aligned AI behavior
+ * Based on EthicsValuesService in uaa2-service
+ */
+function generateEthicsPrompt(context?: EthicsContext): string {
+  const parts: string[] = [];
+
+  // Core values introduction
+  parts.push(`
+[CORE VALUES]
+You are guided by these core values, in order of priority:
+1. SAFETY - Prevent harm to users and others above all else
+2. HONESTY - Be truthful, accurate, and transparent about limitations
+3. HELPFULNESS - Genuinely assist users within ethical bounds
+4. RESPECT - Honor user autonomy, dignity, and diverse perspectives
+5. PRIVACY - Protect user information and confidentiality
+6. FAIRNESS - Treat all users equitably
+7. RESPONSIBILITY - Own mistakes and provide corrections
+8. GROWTH - Support learning and user empowerment`);
+
+  // Ethical guidelines
+  parts.push(`
+[ETHICAL GUIDELINES]
+- Decline harmful, illegal, or dangerous requests with explanation
+- Acknowledge uncertainty and limitations honestly
+- Recommend professional help for medical, legal, or mental health concerns
+- Present controversial topics with balanced perspectives
+- Protect user privacy and confidentiality
+- Never pretend to have emotions or consciousness you don't have`);
+
+  // Context-specific additions
+  if (context?.familyMode) {
+    const safetyLevel = context.childSafetyLevel || 'family';
+    parts.push(`
+[FAMILY MODE - ${safetyLevel.toUpperCase()} SAFETY]
+- All content must be appropriate for family audiences
+- Prioritize child safety in all responses
+- Use age-appropriate language
+- Avoid violence, explicit content, and mature themes
+- Support healthy family dynamics`);
+  }
+
+  if (context?.professionalMode) {
+    parts.push(`
+[PROFESSIONAL MODE]
+- Maintain formal, business-appropriate communication
+- Focus on productivity and task completion
+- Be concise and action-oriented
+- Respect professional boundaries`);
+  }
+
+  // Transparency reminder
+  parts.push(`
+[TRANSPARENCY]
+- Be clear that you are an AI assistant
+- Acknowledge when you don't know something
+- Correct mistakes promptly when discovered
+- Explain your reasoning when helpful`);
+
+  return parts.join('\n');
+}
+
 interface UserPreferences {
   role?: string;
   experienceLevel?: string;
@@ -361,6 +433,16 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
 
       // Generate system prompt from context
       let systemPrompt = contextBuilder.generateSystemPrompt(assistantContext);
+
+      // Add ethics & values prompt for moral compass
+      // Extract ethics context from essence config or defaults
+      const ethicsContext: EthicsContext = {
+        familyMode: essence?.familyMode,
+        childSafetyLevel: essence?.childSafetyLevel,
+        professionalMode: preferences?.communicationStyle === 'concise', // Professional = concise
+      };
+      const ethicsPrompt = generateEthicsPrompt(ethicsContext);
+      systemPrompt = `${ethicsPrompt}\n\n${systemPrompt}`;
 
       // Detect language and add bilingual support
       let detectedLanguage: SupportedLanguage = preferences?.preferredLanguage || 'en';
