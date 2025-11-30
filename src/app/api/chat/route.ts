@@ -39,6 +39,32 @@ interface UserPreferences {
   preferredLanguage?: SupportedLanguage;
 }
 
+/**
+ * Driving mode context for in-vehicle assistant
+ * Works for both EV and non-EV drivers
+ */
+export interface DrivingContext {
+  enabled: boolean;
+  // Vehicle info (optional)
+  isEV?: boolean;
+  vehicleId?: string;
+  // EV-specific (optional)
+  batteryPercent?: number;
+  currentRange?: number; // miles/km
+  isCharging?: boolean;
+  chargingTimeRemaining?: number; // minutes
+  // Navigation (all drivers)
+  destination?: string;
+  estimatedArrival?: string;
+  distanceRemaining?: number; // miles/km
+  // Conditions (all drivers)
+  trafficConditions?: 'light' | 'moderate' | 'heavy';
+  weather?: string;
+  // Music integration
+  currentMusic?: string;
+  musicMood?: 'calm' | 'energetic' | 'focused' | 'relaxed';
+}
+
 interface ChatRequest {
   message: string;
   conversationId?: string;
@@ -49,6 +75,7 @@ interface ChatRequest {
   preferences?: UserPreferences;
   essence?: EssenceConfig;
   sessionId?: string; // For speaker recognition continuity
+  drivingMode?: DrivingContext; // Driving mode context
 }
 
 interface ChatResponse {
@@ -64,7 +91,99 @@ interface ChatResponse {
     model?: string;
     tokensUsed?: number;
     processingTime?: number;
+    drivingMode?: boolean;
   };
+}
+
+// ============================================================================
+// DRIVING MODE PROMPT GENERATOR
+// ============================================================================
+
+/**
+ * Generate driving-optimized system prompt
+ * Works for both EV and non-EV drivers
+ */
+function generateDrivingPrompt(context: DrivingContext): string {
+  const parts: string[] = [];
+
+  // Base driving mode instructions
+  parts.push(`
+[DRIVING MODE ACTIVE]
+The user is currently driving. Adapt your responses:
+- Keep responses SHORT and CONCISE (2-3 sentences max unless asked for more)
+- Use simple, clear language suitable for voice reading
+- Avoid lists, code blocks, or complex formatting
+- Prioritize safety - never encourage distracted driving
+- If asked to do something complex, suggest they pull over first`);
+
+  // Navigation context (all drivers)
+  if (context.destination || context.distanceRemaining || context.estimatedArrival) {
+    const navParts: string[] = [];
+    if (context.destination) navParts.push(`Heading to: ${context.destination}`);
+    if (context.distanceRemaining) navParts.push(`${context.distanceRemaining} miles remaining`);
+    if (context.estimatedArrival) navParts.push(`ETA: ${context.estimatedArrival}`);
+    parts.push(`\n[Navigation: ${navParts.join(' | ')}]`);
+  }
+
+  // Traffic & weather (all drivers)
+  if (context.trafficConditions || context.weather) {
+    const condParts: string[] = [];
+    if (context.trafficConditions) condParts.push(`Traffic: ${context.trafficConditions}`);
+    if (context.weather) condParts.push(`Weather: ${context.weather}`);
+    parts.push(`\n[Conditions: ${condParts.join(' | ')}]`);
+  }
+
+  // EV-specific context
+  if (context.isEV) {
+    const evParts: string[] = [];
+
+    if (context.batteryPercent !== undefined) {
+      evParts.push(`Battery: ${context.batteryPercent}%`);
+
+      // Add proactive alerts for low battery
+      if (context.batteryPercent <= 20) {
+        parts.push(`\n⚠️ [LOW BATTERY ALERT: ${context.batteryPercent}% - Consider suggesting nearby charging stations if relevant]`);
+      }
+    }
+
+    if (context.currentRange !== undefined) {
+      evParts.push(`Range: ${context.currentRange} mi`);
+
+      // Check if range might not be sufficient for destination
+      if (context.distanceRemaining && context.currentRange < context.distanceRemaining * 1.2) {
+        parts.push(`\n⚠️ [RANGE ADVISORY: Current range (${context.currentRange} mi) may be tight for destination (${context.distanceRemaining} mi). Be ready to suggest charging stops.]`);
+      }
+    }
+
+    if (context.isCharging) {
+      evParts.push('Currently charging');
+      if (context.chargingTimeRemaining) {
+        evParts.push(`${context.chargingTimeRemaining} min remaining`);
+      }
+    }
+
+    if (evParts.length > 0) {
+      parts.push(`\n[EV Status: ${evParts.join(' | ')}]`);
+    }
+  }
+
+  // Music context
+  if (context.currentMusic || context.musicMood) {
+    const musicParts: string[] = [];
+    if (context.currentMusic) musicParts.push(`Playing: ${context.currentMusic}`);
+    if (context.musicMood) musicParts.push(`Mood: ${context.musicMood}`);
+    parts.push(`\n[Music: ${musicParts.join(' | ')}]`);
+  }
+
+  // Voice-friendly response format reminder
+  parts.push(`\n
+[Response Format for Driving]
+- Start with the key information
+- Use natural speech patterns
+- Say numbers clearly (e.g., "twenty miles" not "20mi")
+- End with a brief, helpful note if appropriate`);
+
+  return parts.join('');
 }
 
 /**
@@ -104,7 +223,7 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     const body: ChatRequest = await request.json();
-    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode, userContext, preferences, essence, sessionId } = body;
+    const { message, conversationId, userId: providedUserId, userTier: providedTier, mode, userContext, preferences, essence, sessionId, drivingMode } = body;
 
     // Validate message
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -329,6 +448,18 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         });
       }
 
+      // Add driving mode context to system prompt
+      if (drivingMode?.enabled) {
+        const drivingPrompt = generateDrivingPrompt(drivingMode);
+        systemPrompt = `${systemPrompt}${drivingPrompt}`;
+
+        logger.debug('[Infinity Agent] Driving mode enabled:', {
+          isEV: drivingMode.isEV,
+          batteryPercent: drivingMode.batteryPercent,
+          destination: drivingMode.destination,
+        });
+      }
+
       // Enhance message with context
       let enhancedMessage = filteredRequest.message;
 
@@ -443,6 +574,7 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         model: 'infinity-agent',
         tokensUsed,
         processingTime,
+        ...(drivingMode?.enabled && { drivingMode: true }),
       },
     };
 
