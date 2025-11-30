@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages } from 'lucide-react';
-import { UserPreferences } from '@/components/AssistantOnboarding';
+import { UserPreferences } from '@/components/BuilderOnboarding';
 import type { MemoryEntry, CompressedMemory } from '@/lib/knowledge/types';
 
 /**
@@ -122,6 +122,7 @@ const defaultPreferences: UserPreferences = {
   customInterests: [],
   communicationStyle: 'conversational',
   workflowPhases: ['research', 'plan', 'deliver'],
+  preferredLanguage: 'en',
 };
 
 export function SettingsModal({

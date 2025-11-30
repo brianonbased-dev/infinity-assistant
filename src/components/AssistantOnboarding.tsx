@@ -3,21 +3,17 @@
 /**
  * Assistant Onboarding Component
  *
- * Email sign-up onboarding for FREE tier users
- * Collects basic preferences for search experience
+ * Companion-focused onboarding for Infinity Assistant users.
+ * Collects preferences for a personalized AI companion experience.
  *
- * FREE TIER users get:
- * - Search mode only (20 queries/day)
- * - Knowledge base access (W/P/G)
- * - Auto-research for missing topics
+ * This onboarding focuses on:
+ * - User's name and how they'd like to be addressed
+ * - Communication preferences (casual, formal, playful)
+ * - Topics of interest (not just tech)
+ * - Voice/personality preferences
+ * - Optional family mode setup
  *
- * This onboarding is lightweight and focused on:
- * - Email collection for account
- * - Basic preferences (role, interests)
- * - Search-focused experience
- *
- * PAID users (Assistant Pro) get additional modes after upgrade.
- * BUILDER users get separate workspace onboarding after subscribing.
+ * For developer-focused onboarding (search/assist/build), see BuilderOnboarding.
  */
 
 import { useState } from 'react';
@@ -29,22 +25,23 @@ import {
   Check,
   ArrowRight,
   ArrowLeft,
-  Search,
-  MessageCircle,
   Sparkles,
   Loader2,
+  Heart,
+  Smile,
   Briefcase,
-  GraduationCap,
-  Rocket,
-  Lightbulb,
-  Wrench,
+  MessageCircle,
+  Music,
   BookOpen,
-  Zap,
-  Brain,
+  Palette,
+  Gamepad2,
+  Globe,
   Users,
-  Plus,
-  Mail,
-  Lock,
+  Baby,
+  Shield,
+  Sun,
+  Moon,
+  Coffee,
 } from 'lucide-react';
 
 interface WizardStep {
@@ -54,23 +51,31 @@ interface WizardStep {
   component: React.ReactNode;
 }
 
-// User preferences collected during onboarding
-export interface UserPreferences {
-  email?: string; // Email for account (free tier sign-up)
-  role: string;
-  experienceLevel: string;
-  primaryGoals: string[];
-  preferredMode: 'search' | 'assist' | 'build';
+// Assistant mode - companion vs professional
+export type AssistantMode = 'companion' | 'professional';
+
+// Preferences collected during onboarding
+export interface CompanionPreferences {
+  mode: AssistantMode; // Companion or Professional
+  name: string; // User's name
+  nickname?: string; // How the assistant should address them
+  personality: 'friendly' | 'professional' | 'playful' | 'supportive' | 'wise';
+  communicationStyle: 'casual' | 'balanced' | 'formal';
   interests: string[];
-  customInterests: string[]; // User-added technologies
-  communicationStyle: 'concise' | 'detailed' | 'conversational';
-  workflowPhases: ('research' | 'plan' | 'deliver')[]; // Preferred workflow phases
-  tier?: 'free' | 'assistant_pro' | 'builder_pro'; // User tier
+  customInterests: string[];
+  responseLength: 'brief' | 'balanced' | 'detailed';
+  // Family mode (companion only)
+  familyMode: boolean;
+  familyMembers: string[];
+  childSafetyLevel: 'open' | 'family' | 'strict';
+  // Preferences
+  preferredLanguage: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh' | 'ar';
+  timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'auto';
 }
 
 interface AssistantOnboardingProps {
   userId: string;
-  onComplete: (preferences: UserPreferences) => void;
+  onComplete: (preferences: CompanionPreferences) => void;
   onSkip: () => void;
 }
 
@@ -78,26 +83,43 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
   const [customInterestInput, setCustomInterestInput] = useState('');
-  const [emailError, setEmailError] = useState('');
 
-  // User preferences state - FREE tier defaults to search mode
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    email: '',
-    role: '',
-    experienceLevel: '',
-    primaryGoals: [],
-    preferredMode: 'search', // FREE tier = search mode only
+  // Preferences state
+  const [preferences, setPreferences] = useState<CompanionPreferences>({
+    mode: 'companion', // Default to companion, can switch to professional
+    name: '',
+    nickname: '',
+    personality: 'friendly',
+    communicationStyle: 'casual',
     interests: [],
     customInterests: [],
-    communicationStyle: 'conversational',
-    workflowPhases: ['research'], // FREE tier focuses on research
-    tier: 'free',
+    responseLength: 'balanced',
+    familyMode: false,
+    familyMembers: [],
+    childSafetyLevel: 'family',
+    preferredLanguage: 'en',
+    timeOfDay: 'auto',
   });
 
-  // Email validation
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  // Apply professional defaults when mode changes
+  const setMode = (mode: AssistantMode) => {
+    if (mode === 'professional') {
+      setPreferences(prev => ({
+        ...prev,
+        mode,
+        personality: 'professional',
+        communicationStyle: 'formal',
+        responseLength: 'balanced',
+        familyMode: false,
+      }));
+    } else {
+      setPreferences(prev => ({
+        ...prev,
+        mode,
+        personality: 'friendly',
+        communicationStyle: 'casual',
+      }));
+    }
   };
 
   // Selection option component
@@ -122,11 +144,13 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
       green: { border: 'border-green-500', bg: 'bg-green-500/10', icon: 'text-green-400' },
       orange: { border: 'border-orange-500', bg: 'bg-orange-500/10', icon: 'text-orange-400' },
       cyan: { border: 'border-cyan-500', bg: 'bg-cyan-500/10', icon: 'text-cyan-400' },
+      pink: { border: 'border-pink-500', bg: 'bg-pink-500/10', icon: 'text-pink-400' },
     };
     const colors = colorClasses[color] || colorClasses.purple;
 
     return (
       <button
+        type="button"
         onClick={onClick}
         className={`p-4 rounded-lg border-2 transition-all text-left w-full ${
           selected
@@ -149,47 +173,29 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   // Multi-select option component
   const MultiSelectOption = ({
     label,
+    emoji,
     selected,
     onClick,
-    removable = false,
-    onRemove
   }: {
     label: string;
+    emoji?: string;
     selected: boolean;
     onClick: () => void;
-    removable?: boolean;
-    onRemove?: () => void;
   }) => (
     <button
+      type="button"
       onClick={onClick}
-      className={`px-4 py-2 rounded-full border transition-all text-sm flex items-center gap-1 ${
+      className={`px-4 py-2 rounded-full border transition-all text-sm flex items-center gap-2 ${
         selected
           ? 'border-purple-500 bg-purple-500/20 text-purple-300'
           : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
       }`}
     >
+      {emoji && <span>{emoji}</span>}
       {label}
-      {selected && <Check className="w-3 h-3 inline ml-1" />}
-      {removable && selected && (
-        <X
-          className="w-3 h-3 ml-1 hover:text-red-400"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.();
-          }}
-        />
-      )}
+      {selected && <Check className="w-3 h-3" />}
     </button>
   );
-
-  const toggleGoal = (goal: string) => {
-    setPreferences(prev => ({
-      ...prev,
-      primaryGoals: prev.primaryGoals.includes(goal)
-        ? prev.primaryGoals.filter(g => g !== goal)
-        : [...prev.primaryGoals, goal]
-    }));
-  };
 
   const toggleInterest = (interest: string) => {
     setPreferences(prev => ({
@@ -202,7 +208,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
 
   const addCustomInterest = () => {
     const trimmed = customInterestInput.trim();
-    if (trimmed && !preferences.customInterests.includes(trimmed) && !preferences.interests.includes(trimmed.toLowerCase())) {
+    if (trimmed && !preferences.customInterests.includes(trimmed)) {
       setPreferences(prev => ({
         ...prev,
         customInterests: [...prev.customInterests, trimmed]
@@ -211,533 +217,428 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
     }
   };
 
-  const removeCustomInterest = (interest: string) => {
-    setPreferences(prev => ({
-      ...prev,
-      customInterests: prev.customInterests.filter(i => i !== interest)
-    }));
-  };
-
   const steps: WizardStep[] = [
-    // Step 1: Welcome + Email
+    // Step 1: Choose Mode
+    {
+      id: 'mode',
+      title: 'How would you like me to help?',
+      description: 'Choose the experience that fits you best',
+      component: (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Companion Mode */}
+            <button
+              type="button"
+              onClick={() => setMode('companion')}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                preferences.mode === 'companion'
+                  ? 'border-pink-500 bg-pink-500/10'
+                  : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  preferences.mode === 'companion' ? 'bg-pink-500/20' : 'bg-gray-700'
+                }`}>
+                  <Heart className={`w-6 h-6 ${preferences.mode === 'companion' ? 'text-pink-400' : 'text-gray-400'}`} />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${preferences.mode === 'companion' ? 'text-white' : 'text-gray-300'}`}>
+                    Personal Companion
+                  </h3>
+                  {preferences.mode === 'companion' && <Check className="w-4 h-4 text-pink-400 inline ml-2" />}
+                </div>
+              </div>
+              <p className="text-sm text-gray-400">
+                Friendly, conversational AI that learns about you, your interests, and adapts to your family.
+              </p>
+              <ul className="mt-3 text-xs text-gray-500 space-y-1">
+                <li>• Remembers your preferences</li>
+                <li>• Family mode with speaker recognition</li>
+                <li>• Casual, warm conversations</li>
+              </ul>
+            </button>
+
+            {/* Professional Mode */}
+            <button
+              type="button"
+              onClick={() => setMode('professional')}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                preferences.mode === 'professional'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  preferences.mode === 'professional' ? 'bg-blue-500/20' : 'bg-gray-700'
+                }`}>
+                  <Briefcase className={`w-6 h-6 ${preferences.mode === 'professional' ? 'text-blue-400' : 'text-gray-400'}`} />
+                </div>
+                <div>
+                  <h3 className={`font-semibold ${preferences.mode === 'professional' ? 'text-white' : 'text-gray-300'}`}>
+                    Professional Assistant
+                  </h3>
+                  {preferences.mode === 'professional' && <Check className="w-4 h-4 text-blue-400 inline ml-2" />}
+                </div>
+              </div>
+              <p className="text-sm text-gray-400">
+                Efficient, focused AI that helps you get things done with clear, professional responses.
+              </p>
+              <ul className="mt-3 text-xs text-gray-500 space-y-1">
+                <li>• Direct, concise responses</li>
+                <li>• Task and productivity focused</li>
+                <li>• Formal, business-appropriate</li>
+              </ul>
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-gray-500 mt-4">
+            You can always change this later in settings
+          </p>
+        </div>
+      ),
+    },
+    // Step 2: Welcome & Name
     {
       id: 'welcome',
-      title: 'Welcome to Infinity Search',
-      description: 'Get started with free knowledge search',
+      title: preferences.mode === 'professional' ? 'Welcome to Infinity' : 'Nice to meet you!',
+      description: preferences.mode === 'professional' ? "Let's get you set up" : "Tell me a bit about yourself",
       component: (
         <div className="space-y-6 text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
-              <Search className="w-10 h-10 text-white" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
+              preferences.mode === 'professional'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600'
+                : 'bg-gradient-to-r from-purple-600 to-pink-600 animate-pulse'
+            }`}>
+              {preferences.mode === 'professional'
+                ? <Briefcase className="w-10 h-10 text-white" />
+                : <Sparkles className="w-10 h-10 text-white" />
+              }
             </div>
           </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Infinity Search
+          <h2 className={`text-3xl font-bold bg-clip-text text-transparent ${
+            preferences.mode === 'professional'
+              ? 'bg-gradient-to-r from-blue-400 to-cyan-400'
+              : 'bg-gradient-to-r from-purple-400 to-pink-400'
+          }`}>
+            {preferences.mode === 'professional' ? 'Infinity Assistant' : "Hi there! I'm Infinity"}
           </h2>
           <p className="text-gray-300 max-w-md mx-auto">
-            Search our growing knowledge base of patterns, wisdom, and gotchas. Your searches help us build better knowledge for everyone.
+            {preferences.mode === 'professional'
+              ? "I'm here to help you work smarter and get things done efficiently."
+              : "I'm your personal AI companion. I'm here to help, chat, and make your day a little easier."
+            }
           </p>
 
-          {/* Email signup */}
+          {/* Name input */}
           <div className="max-w-sm mx-auto mt-8">
             <label className="block text-left text-sm text-gray-400 mb-2">
-              Enter your email to get started (optional)
+              {preferences.mode === 'professional' ? 'Your name' : "What's your name?"}
             </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
-              <Input
-                type="email"
-                value={preferences.email || ''}
-                onChange={(e) => {
-                  setPreferences(prev => ({ ...prev, email: e.target.value }));
-                  setEmailError('');
-                }}
-                placeholder="your@email.com"
-                className="pl-10 bg-gray-800 border-gray-700 text-white placeholder-gray-500"
-              />
-            </div>
-            {emailError && (
-              <p className="text-red-400 text-xs mt-1 text-left">{emailError}</p>
-            )}
-            <p className="text-xs text-gray-500 mt-2 text-left">
-              We&apos;ll save your preferences and notify you of new features.
-            </p>
+            <Input
+              type="text"
+              value={preferences.name}
+              onChange={(e) => setPreferences(prev => ({ ...prev, name: e.target.value }))}
+              placeholder="Your name"
+              className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 text-center text-lg"
+              autoFocus
+            />
           </div>
 
-          {/* Free tier info */}
-          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg max-w-sm mx-auto">
-            <div className="flex items-center gap-2 justify-center mb-2">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <span className="text-sm font-medium text-blue-300">Free Tier Includes</span>
+          {preferences.name && preferences.mode === 'companion' && (
+            <div className="max-w-sm mx-auto mt-4">
+              <label className="block text-left text-sm text-gray-400 mb-2">
+                What should I call you? (optional)
+              </label>
+              <Input
+                type="text"
+                value={preferences.nickname || ''}
+                onChange={(e) => setPreferences(prev => ({ ...prev, nickname: e.target.value }))}
+                placeholder={preferences.name || 'A nickname'}
+                className="bg-gray-800 border-gray-700 text-white placeholder-gray-500 text-center"
+              />
             </div>
-            <ul className="text-xs text-gray-400 space-y-1 text-left">
-              <li className="flex items-center gap-2">
-                <Check className="w-3 h-3 text-green-400" />
-                <span>20 searches per day</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-3 h-3 text-green-400" />
-                <span>Knowledge base access (W/P/G)</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-3 h-3 text-green-400" />
-                <span>Auto-research for new topics</span>
-              </li>
-            </ul>
-          </div>
+          )}
         </div>
       ),
     },
-    // Step 2: Role selection
+    // Step 2: Personality
     {
-      id: 'role',
-      title: 'What describes you best?',
-      description: 'This helps us tailor responses to your context',
+      id: 'personality',
+      title: 'How should I be?',
+      description: 'Choose a personality that feels right',
       component: (
         <div className="space-y-3">
           <SelectionOption
-            icon={Code}
-            label="Software Developer"
-            description="Building applications, writing code, debugging"
-            selected={preferences.role === 'developer'}
-            onClick={() => setPreferences(prev => ({ ...prev, role: 'developer' }))}
-            color="blue"
+            icon={Smile}
+            label="Friendly & Warm"
+            description="Approachable, conversational, like chatting with a good friend"
+            selected={preferences.personality === 'friendly'}
+            onClick={() => setPreferences(prev => ({ ...prev, personality: 'friendly' }))}
+            color="pink"
           />
           <SelectionOption
-            icon={Briefcase}
-            label="Product Manager / Business"
-            description="Planning features, strategy, requirements"
-            selected={preferences.role === 'product'}
-            onClick={() => setPreferences(prev => ({ ...prev, role: 'product' }))}
+            icon={Heart}
+            label="Supportive & Caring"
+            description="Encouraging, patient, always here to help"
+            selected={preferences.personality === 'supportive'}
+            onClick={() => setPreferences(prev => ({ ...prev, personality: 'supportive' }))}
             color="purple"
           />
           <SelectionOption
-            icon={GraduationCap}
-            label="Student / Learner"
-            description="Learning to code, studying concepts"
-            selected={preferences.role === 'student'}
-            onClick={() => setPreferences(prev => ({ ...prev, role: 'student' }))}
-            color="green"
-          />
-          <SelectionOption
-            icon={Rocket}
-            label="Entrepreneur / Founder"
-            description="Building a startup, wearing many hats"
-            selected={preferences.role === 'entrepreneur'}
-            onClick={() => setPreferences(prev => ({ ...prev, role: 'entrepreneur' }))}
+            icon={Sparkles}
+            label="Playful & Fun"
+            description="Lighthearted, creative, brings a smile"
+            selected={preferences.personality === 'playful'}
+            onClick={() => setPreferences(prev => ({ ...prev, personality: 'playful' }))}
             color="orange"
           />
           <SelectionOption
-            icon={Users}
-            label="Other / Just Exploring"
-            description="Curious about what Infinity Assistant can do"
-            selected={preferences.role === 'other'}
-            onClick={() => setPreferences(prev => ({ ...prev, role: 'other' }))}
-          />
-        </div>
-      ),
-    },
-    // Step 3: Experience level
-    {
-      id: 'experience',
-      title: 'What\'s your experience level?',
-      description: 'We\'ll adjust explanations accordingly',
-      component: (
-        <div className="space-y-3">
-          <SelectionOption
-            icon={Lightbulb}
-            label="Beginner"
-            description="New to development, learning the basics"
-            selected={preferences.experienceLevel === 'beginner'}
-            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'beginner' }))}
-            color="green"
+            icon={BookOpen}
+            label="Wise & Thoughtful"
+            description="Insightful, reflective, offers perspective"
+            selected={preferences.personality === 'wise'}
+            onClick={() => setPreferences(prev => ({ ...prev, personality: 'wise' }))}
+            color="cyan"
           />
           <SelectionOption
-            icon={Wrench}
-            label="Intermediate"
-            description="Comfortable with fundamentals, building projects"
-            selected={preferences.experienceLevel === 'intermediate'}
-            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'intermediate' }))}
+            icon={Briefcase}
+            label="Professional"
+            description="Clear, efficient, gets things done"
+            selected={preferences.personality === 'professional'}
+            onClick={() => setPreferences(prev => ({ ...prev, personality: 'professional' }))}
             color="blue"
           />
-          <SelectionOption
-            icon={Rocket}
-            label="Advanced"
-            description="Deep expertise, architecting complex systems"
-            selected={preferences.experienceLevel === 'advanced'}
-            onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'advanced' }))}
-            color="purple"
-          />
         </div>
       ),
     },
-    // Step 4: Primary goals
+    // Step 3: Communication Style
     {
-      id: 'goals',
-      title: 'What do you want to accomplish?',
-      description: 'Select all that apply',
+      id: 'communication',
+      title: 'How should I talk?',
+      description: 'Pick a communication style',
       component: (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <MultiSelectOption
-              label="Learn new skills"
-              selected={preferences.primaryGoals.includes('learn')}
-              onClick={() => toggleGoal('learn')}
+          <div className="space-y-3">
+            <SelectionOption
+              icon={Coffee}
+              label="Casual & Relaxed"
+              description="Informal, friendly, like texting a friend"
+              selected={preferences.communicationStyle === 'casual'}
+              onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'casual' }))}
+              color="green"
             />
-            <MultiSelectOption
-              label="Build projects"
-              selected={preferences.primaryGoals.includes('build')}
-              onClick={() => toggleGoal('build')}
+            <SelectionOption
+              icon={MessageCircle}
+              label="Balanced"
+              description="Natural mix of casual and clear"
+              selected={preferences.communicationStyle === 'balanced'}
+              onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'balanced' }))}
+              color="blue"
             />
-            <MultiSelectOption
-              label="Debug issues"
-              selected={preferences.primaryGoals.includes('debug')}
-              onClick={() => toggleGoal('debug')}
-            />
-            <MultiSelectOption
-              label="Find best practices"
-              selected={preferences.primaryGoals.includes('best-practices')}
-              onClick={() => toggleGoal('best-practices')}
-            />
-            <MultiSelectOption
-              label="Code reviews"
-              selected={preferences.primaryGoals.includes('code-review')}
-              onClick={() => toggleGoal('code-review')}
-            />
-            <MultiSelectOption
-              label="Research topics"
-              selected={preferences.primaryGoals.includes('research')}
-              onClick={() => toggleGoal('research')}
-            />
-            <MultiSelectOption
-              label="Write documentation"
-              selected={preferences.primaryGoals.includes('documentation')}
-              onClick={() => toggleGoal('documentation')}
-            />
-            <MultiSelectOption
-              label="Plan architecture"
-              selected={preferences.primaryGoals.includes('architecture')}
-              onClick={() => toggleGoal('architecture')}
+            <SelectionOption
+              icon={Briefcase}
+              label="Formal"
+              description="Professional, polished, precise"
+              selected={preferences.communicationStyle === 'formal'}
+              onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'formal' }))}
+              color="purple"
             />
           </div>
-          {preferences.primaryGoals.length > 0 && (
-            <p className="text-sm text-gray-400">
-              Selected: {preferences.primaryGoals.length} goal{preferences.primaryGoals.length !== 1 ? 's' : ''}
-            </p>
-          )}
+
+          <div className="pt-4 border-t border-gray-700">
+            <p className="text-sm text-gray-400 mb-3">How detailed should my responses be?</p>
+            <div className="flex gap-2">
+              {(['brief', 'balanced', 'detailed'] as const).map((length) => (
+                <button
+                  key={length}
+                  onClick={() => setPreferences(prev => ({ ...prev, responseLength: length }))}
+                  className={`flex-1 px-4 py-3 rounded-lg capitalize transition-all ${
+                    preferences.responseLength === length
+                      ? 'bg-purple-600/30 text-purple-400 border border-purple-500'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-transparent'
+                  }`}
+                >
+                  {length}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       ),
     },
-    // Step 6: Interests/Tech stack (ENHANCED with custom input)
+    // Step 4: Interests
     {
       id: 'interests',
-      title: 'What technologies interest you?',
-      description: 'Select or add your own technologies',
+      title: 'What do you enjoy?',
+      description: 'Help me understand what matters to you',
       component: (
         <div className="space-y-4">
-          {/* Preset Technologies */}
           <div className="flex flex-wrap gap-2">
-            <MultiSelectOption
-              label="React / Next.js"
-              selected={preferences.interests.includes('react')}
-              onClick={() => toggleInterest('react')}
-            />
-            <MultiSelectOption
-              label="TypeScript"
-              selected={preferences.interests.includes('typescript')}
-              onClick={() => toggleInterest('typescript')}
-            />
-            <MultiSelectOption
-              label="Node.js"
-              selected={preferences.interests.includes('nodejs')}
-              onClick={() => toggleInterest('nodejs')}
-            />
-            <MultiSelectOption
-              label="Python"
-              selected={preferences.interests.includes('python')}
-              onClick={() => toggleInterest('python')}
-            />
-            <MultiSelectOption
-              label="AI / Machine Learning"
-              selected={preferences.interests.includes('ai-ml')}
-              onClick={() => toggleInterest('ai-ml')}
-            />
-            <MultiSelectOption
-              label="Databases / SQL"
-              selected={preferences.interests.includes('databases')}
-              onClick={() => toggleInterest('databases')}
-            />
-            <MultiSelectOption
-              label="Cloud / DevOps"
-              selected={preferences.interests.includes('cloud')}
-              onClick={() => toggleInterest('cloud')}
-            />
-            <MultiSelectOption
-              label="Mobile Development"
-              selected={preferences.interests.includes('mobile')}
-              onClick={() => toggleInterest('mobile')}
-            />
-            <MultiSelectOption
-              label="Web3 / Blockchain"
-              selected={preferences.interests.includes('web3')}
-              onClick={() => toggleInterest('web3')}
-            />
-            <MultiSelectOption
-              label="System Design"
-              selected={preferences.interests.includes('system-design')}
-              onClick={() => toggleInterest('system-design')}
-            />
-            <MultiSelectOption
-              label="Rust"
-              selected={preferences.interests.includes('rust')}
-              onClick={() => toggleInterest('rust')}
-            />
-            <MultiSelectOption
-              label="Go"
-              selected={preferences.interests.includes('go')}
-              onClick={() => toggleInterest('go')}
-            />
-            <MultiSelectOption
-              label="Java / Spring"
-              selected={preferences.interests.includes('java')}
-              onClick={() => toggleInterest('java')}
-            />
-            <MultiSelectOption
-              label="C# / .NET"
-              selected={preferences.interests.includes('dotnet')}
-              onClick={() => toggleInterest('dotnet')}
-            />
-            <MultiSelectOption
-              label="GraphQL"
-              selected={preferences.interests.includes('graphql')}
-              onClick={() => toggleInterest('graphql')}
-            />
-            <MultiSelectOption
-              label="Kubernetes"
-              selected={preferences.interests.includes('kubernetes')}
-              onClick={() => toggleInterest('kubernetes')}
-            />
+            <MultiSelectOption label="Music" emoji="🎵" selected={preferences.interests.includes('music')} onClick={() => toggleInterest('music')} />
+            <MultiSelectOption label="Movies & TV" emoji="🎬" selected={preferences.interests.includes('movies')} onClick={() => toggleInterest('movies')} />
+            <MultiSelectOption label="Books" emoji="📚" selected={preferences.interests.includes('books')} onClick={() => toggleInterest('books')} />
+            <MultiSelectOption label="Gaming" emoji="🎮" selected={preferences.interests.includes('gaming')} onClick={() => toggleInterest('gaming')} />
+            <MultiSelectOption label="Sports" emoji="⚽" selected={preferences.interests.includes('sports')} onClick={() => toggleInterest('sports')} />
+            <MultiSelectOption label="Cooking" emoji="🍳" selected={preferences.interests.includes('cooking')} onClick={() => toggleInterest('cooking')} />
+            <MultiSelectOption label="Travel" emoji="✈️" selected={preferences.interests.includes('travel')} onClick={() => toggleInterest('travel')} />
+            <MultiSelectOption label="Art & Design" emoji="🎨" selected={preferences.interests.includes('art')} onClick={() => toggleInterest('art')} />
+            <MultiSelectOption label="Technology" emoji="💻" selected={preferences.interests.includes('technology')} onClick={() => toggleInterest('technology')} />
+            <MultiSelectOption label="Science" emoji="🔬" selected={preferences.interests.includes('science')} onClick={() => toggleInterest('science')} />
+            <MultiSelectOption label="Nature" emoji="🌿" selected={preferences.interests.includes('nature')} onClick={() => toggleInterest('nature')} />
+            <MultiSelectOption label="Fitness" emoji="💪" selected={preferences.interests.includes('fitness')} onClick={() => toggleInterest('fitness')} />
+            <MultiSelectOption label="Pets" emoji="🐾" selected={preferences.interests.includes('pets')} onClick={() => toggleInterest('pets')} />
+            <MultiSelectOption label="Photography" emoji="📷" selected={preferences.interests.includes('photography')} onClick={() => toggleInterest('photography')} />
+            <MultiSelectOption label="Finance" emoji="💰" selected={preferences.interests.includes('finance')} onClick={() => toggleInterest('finance')} />
+            <MultiSelectOption label="Mindfulness" emoji="🧘" selected={preferences.interests.includes('mindfulness')} onClick={() => toggleInterest('mindfulness')} />
           </div>
 
-          {/* Custom Technologies */}
-          {preferences.customInterests.length > 0 && (
-            <div className="pt-2 border-t border-gray-700">
-              <p className="text-xs text-gray-500 mb-2">Your custom technologies:</p>
-              <div className="flex flex-wrap gap-2">
-                {preferences.customInterests.map(interest => (
-                  <MultiSelectOption
-                    key={interest}
-                    label={interest}
-                    selected={true}
-                    onClick={() => {}}
-                    removable={true}
-                    onRemove={() => removeCustomInterest(interest)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Add Custom Technology */}
-          <div className="pt-2 border-t border-gray-700">
-            <p className="text-xs text-gray-500 mb-2">Add your own technology:</p>
+          {/* Custom interests */}
+          <div className="pt-4 border-t border-gray-700">
+            <p className="text-xs text-gray-500 mb-2">Add your own:</p>
             <div className="flex gap-2">
               <Input
                 value={customInterestInput}
                 onChange={(e) => setCustomInterestInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addCustomInterest();
-                  }
-                }}
-                placeholder="e.g., Flutter, Svelte, Elixir..."
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomInterest())}
+                placeholder="Something else you love..."
                 className="flex-1 bg-gray-800 border-gray-700 text-white placeholder-gray-500"
               />
-              <Button
-                onClick={addCustomInterest}
-                disabled={!customInterestInput.trim()}
-                className="bg-purple-600 hover:bg-purple-500"
-              >
-                <Plus className="w-4 h-4" />
+              <Button onClick={addCustomInterest} disabled={!customInterestInput.trim()} className="bg-purple-600 hover:bg-purple-500">
+                Add
               </Button>
             </div>
+            {preferences.customInterests.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {preferences.customInterests.map(interest => (
+                  <span key={interest} className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm flex items-center gap-1">
+                    {interest}
+                    <X className="w-3 h-3 cursor-pointer hover:text-red-400" onClick={() => setPreferences(prev => ({ ...prev, customInterests: prev.customInterests.filter(i => i !== interest) }))} />
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    // Step 5: Family Mode (companion mode only)
+    ...(preferences.mode === 'companion' ? [{
+      id: 'family',
+      title: 'Family Mode',
+      description: 'Will others use this assistant?',
+      component: (
+        <div className="space-y-6">
+          <div className="text-center mb-4">
+            <Users className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+            <p className="text-gray-300">
+              Family mode helps me recognize and adapt to different family members
+            </p>
           </div>
 
-          {/* Selection count */}
-          {(preferences.interests.length + preferences.customInterests.length) > 0 && (
-            <p className="text-sm text-gray-400">
-              Selected: {preferences.interests.length + preferences.customInterests.length} technolog{(preferences.interests.length + preferences.customInterests.length) !== 1 ? 'ies' : 'y'}
-            </p>
+          <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
+            <div>
+              <div className="font-medium text-white">Enable Family Mode</div>
+              <div className="text-xs text-gray-400">Adapt responses for the whole family</div>
+            </div>
+            <button
+              type="button"
+              title={preferences.familyMode ? 'Disable family mode' : 'Enable family mode'}
+              onClick={() => setPreferences(prev => ({ ...prev, familyMode: !prev.familyMode }))}
+              className={`relative w-14 h-7 rounded-full transition-colors ${
+                preferences.familyMode ? 'bg-blue-600' : 'bg-gray-600'
+              }`}
+            >
+              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                preferences.familyMode ? 'translate-x-8' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          {preferences.familyMode && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+              {/* Child Safety Level */}
+              <div className="p-4 bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="w-4 h-4 text-green-400" />
+                  <span className="font-medium text-white">Safety Level</span>
+                </div>
+                <div className="flex gap-2">
+                  {(['open', 'family', 'strict'] as const).map((level) => (
+                    <button
+                      type="button"
+                      key={level}
+                      onClick={() => setPreferences(prev => ({ ...prev, childSafetyLevel: level }))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm capitalize transition-all ${
+                        preferences.childSafetyLevel === level
+                          ? level === 'strict' ? 'bg-red-600/30 text-red-400 border border-red-500'
+                          : level === 'family' ? 'bg-blue-600/30 text-blue-400 border border-blue-500'
+                          : 'bg-green-600/30 text-green-400 border border-green-500'
+                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-transparent'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {preferences.childSafetyLevel === 'strict' && 'Most protective - suitable for young children'}
+                  {preferences.childSafetyLevel === 'family' && 'Family-friendly content for all ages'}
+                  {preferences.childSafetyLevel === 'open' && 'General content with standard guidelines'}
+                </p>
+              </div>
+
+              {/* Family members hint */}
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Baby className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm text-blue-300">Family Members</span>
+                </div>
+                <p className="text-xs text-gray-400">
+                  I'll learn to recognize different speakers over time. You can also add family members in Settings later.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       ),
-    },
-    // Step 7: Communication style
-    {
-      id: 'style',
-      title: 'How should I communicate?',
-      description: 'Choose your preferred response style',
-      component: (
-        <div className="space-y-3">
-          <SelectionOption
-            icon={Zap}
-            label="Concise"
-            description="Short, direct answers. Get to the point quickly."
-            selected={preferences.communicationStyle === 'concise'}
-            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'concise' }))}
-            color="blue"
-          />
-          <SelectionOption
-            icon={BookOpen}
-            label="Detailed"
-            description="Thorough explanations with examples and context."
-            selected={preferences.communicationStyle === 'detailed'}
-            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'detailed' }))}
-            color="purple"
-          />
-          <SelectionOption
-            icon={MessageCircle}
-            label="Conversational"
-            description="Friendly, natural dialogue. Like chatting with a colleague."
-            selected={preferences.communicationStyle === 'conversational'}
-            onClick={() => setPreferences(prev => ({ ...prev, communicationStyle: 'conversational' }))}
-            color="green"
-          />
-        </div>
-      ),
-    },
-    // Step 6: Free Tier Features
-    {
-      id: 'features',
-      title: 'Your Free Search Experience',
-      description: 'Here\'s what you can do with Infinity Search',
-      component: (
-        <div className="space-y-4">
-          {/* Search - Available */}
-          <div className="p-4 rounded-lg border-2 border-blue-500 bg-blue-500/10">
-            <div className="flex items-center gap-3">
-              <Search className="w-6 h-6 text-blue-400" />
-              <div className="flex-1">
-                <div className="font-medium text-white flex items-center gap-2">
-                  Search
-                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">Free</span>
-                </div>
-                <div className="text-xs text-gray-400 mt-0.5">
-                  Search our knowledge base of patterns, wisdom, and gotchas
-                </div>
-              </div>
-              <Check className="w-5 h-5 text-blue-400" />
-            </div>
-          </div>
-
-          {/* Assist - Locked */}
-          <div className="p-4 rounded-lg border-2 border-gray-700 bg-gray-800 opacity-75">
-            <div className="flex items-center gap-3">
-              <MessageCircle className="w-6 h-6 text-gray-500" />
-              <div className="flex-1">
-                <div className="font-medium text-gray-400 flex items-center gap-2">
-                  Assist
-                  <Lock className="w-3 h-3" />
-                  <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full">Pro $29/mo</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  AI conversations, deep research, memory & context
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Build - Locked */}
-          <div className="p-4 rounded-lg border-2 border-gray-700 bg-gray-800 opacity-75">
-            <div className="flex items-center gap-3">
-              <Brain className="w-6 h-6 text-gray-500" />
-              <div className="flex-1">
-                <div className="font-medium text-gray-400 flex items-center gap-2">
-                  Build
-                  <Lock className="w-3 h-3" />
-                  <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full">Builder $49/mo</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  Code generation, architecture guidance, full-stack development
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Upgrade CTA */}
-          <div className="mt-4 p-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg">
-            <p className="text-sm text-gray-300 text-center">
-              <Sparkles className="w-4 h-4 inline mr-1 text-purple-400" />
-              Unlock more with <a href="#pricing" className="text-purple-400 hover:text-purple-300 font-medium">Assistant Pro</a>
-            </p>
-          </div>
-        </div>
-      ),
-    },
-    // Step 7: Complete
+    }] : []),
+    // Step 6: All Set
     {
       id: 'complete',
       title: "You're All Set!",
-      description: 'Start searching our knowledge base',
+      description: "Let's start chatting",
       component: (
         <div className="text-center space-y-6">
           <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
               <Check className="w-10 h-10 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white">Welcome to Infinity Search!</h2>
+          <h2 className="text-2xl font-bold text-white">
+            Nice to meet you{preferences.nickname || preferences.name ? `, ${preferences.nickname || preferences.name}` : ''}!
+          </h2>
 
-          {/* What we learned */}
+          {/* Summary */}
           <div className="text-left max-w-md mx-auto bg-gray-800 rounded-lg p-4 space-y-2">
             <p className="text-sm text-gray-300">
-              <span className="text-blue-400">Your search experience is personalized:</span>
+              <span className="text-purple-400">Here's how I'll be:</span>
             </p>
             <ul className="text-sm text-gray-400 space-y-1">
-              {preferences.email && (
-                <li>• Signed up as <span className="text-white">{preferences.email}</span></li>
-              )}
-              {preferences.role && (
-                <li>• Tailored for <span className="text-white">{preferences.role}</span></li>
-              )}
-              {preferences.experienceLevel && (
-                <li>• <span className="text-white">{preferences.experienceLevel}</span> level results</li>
-              )}
-              {(preferences.interests.length + preferences.customInterests.length) > 0 && (
-                <li>• Focusing on: <span className="text-white">
-                  {[...preferences.interests, ...preferences.customInterests].slice(0, 3).join(', ')}
-                  {(preferences.interests.length + preferences.customInterests.length) > 3 ? '...' : ''}
-                </span></li>
+              <li>• {preferences.personality.charAt(0).toUpperCase() + preferences.personality.slice(1)} personality</li>
+              <li>• {preferences.communicationStyle.charAt(0).toUpperCase() + preferences.communicationStyle.slice(1)} communication</li>
+              <li>• {preferences.responseLength.charAt(0).toUpperCase() + preferences.responseLength.slice(1)} responses</li>
+              {preferences.familyMode && <li>• Family mode enabled ({preferences.childSafetyLevel} safety)</li>}
+              {preferences.interests.length > 0 && (
+                <li>• Interested in: {preferences.interests.slice(0, 3).join(', ')}{preferences.interests.length > 3 ? '...' : ''}</li>
               )}
             </ul>
-          </div>
-
-          {/* Free tier reminder */}
-          <div className="max-w-md mx-auto bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div className="flex items-center gap-2 justify-center mb-2">
-              <Search className="w-5 h-5 text-blue-400" />
-              <span className="font-medium text-blue-300">Free Search</span>
-            </div>
-            <ul className="text-xs text-gray-400 space-y-1">
-              <li>• 20 searches per day</li>
-              <li>• Knowledge base access (Wisdom, Patterns, Gotchas)</li>
-              <li>• Auto-research creates knowledge for missing topics</li>
-            </ul>
-          </div>
-
-          {/* Upgrade hint */}
-          <div className="max-w-md mx-auto bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg p-3">
-            <p className="text-xs text-gray-400">
-              Want AI conversations and deep research?{' '}
-              <a href="#pricing" className="text-purple-400 hover:text-purple-300 font-medium">
-                Upgrade to Assistant Pro
-              </a>
-            </p>
           </div>
 
           <p className="text-xs text-gray-500">
-            You can change preferences anytime in settings.
+            You can change these anytime in settings.
           </p>
         </div>
       ),
@@ -745,14 +646,6 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   ];
 
   const handleNext = () => {
-    // Validate email on welcome step if provided
-    if (steps[currentStep].id === 'welcome' && preferences.email) {
-      if (!validateEmail(preferences.email)) {
-        setEmailError('Please enter a valid email address');
-        return;
-      }
-    }
-
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -769,7 +662,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
       await fetch('/api/onboarding/skip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, type: 'companion' }),
       });
     } catch (error) {
       console.error('Failed to skip onboarding:', error);
@@ -785,6 +678,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
+          type: 'companion',
           stepsCompleted: steps.map(s => s.id),
           preferences,
         }),
@@ -822,14 +716,12 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
           {/* Progress bar */}
           <div className="mb-6">
             <div className="flex justify-between text-sm text-gray-400 mb-2">
-              <span>
-                Step {currentStep + 1} of {steps.length}
-              </span>
+              <span>Step {currentStep + 1} of {steps.length}</span>
               <span>{Math.round(((currentStep + 1) / steps.length) * 100)}%</span>
             </div>
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-300"
+                className="h-full bg-gradient-to-r from-purple-600 to-pink-600 transition-all duration-300"
                 style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
               />
             </div>
@@ -859,17 +751,17 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
               </Button>
               <Button
                 onClick={currentStep === steps.length - 1 ? handleComplete : handleNext}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500"
-                disabled={isCompleting}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+                disabled={isCompleting || (currentStep === 0 && !preferences.name)}
               >
                 {isCompleting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Completing...
+                    Starting...
                   </>
                 ) : (
                   <>
-                    {currentStep === steps.length - 1 ? 'Get Started' : 'Next'}
+                    {currentStep === steps.length - 1 ? "Let's Chat!" : 'Next'}
                     {currentStep < steps.length - 1 && <ArrowRight className="ml-2 w-4 h-4" />}
                   </>
                 )}

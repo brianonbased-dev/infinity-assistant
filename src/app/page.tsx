@@ -12,7 +12,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { MessageCircle, Code, Search, Sparkles, X, Settings } from 'lucide-react';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
-import { AssistantOnboarding, UserPreferences } from '@/components/AssistantOnboarding';
+import { BuilderOnboarding, UserPreferences } from '@/components/BuilderOnboarding';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useLocalPreferences } from '@/hooks/useLocalPreferences';
 
@@ -138,7 +138,7 @@ function InfinityAssistantContent() {
   // Show onboarding if needed
   if (showOnboarding && userId) {
     return (
-      <AssistantOnboarding
+      <BuilderOnboarding
         userId={userId}
         onComplete={(preferences) => {
           // Save to local storage first (local-first)
