@@ -54,6 +54,9 @@ interface WizardStep {
 // Assistant mode - companion vs professional
 export type AssistantMode = 'companion' | 'professional';
 
+// Communication adaptation style
+export type CommunicationAdaptation = 'match' | 'balanced' | 'counterbalance';
+
 // Preferences collected during onboarding
 export interface CompanionPreferences {
   mode: AssistantMode; // Companion or Professional
@@ -61,6 +64,8 @@ export interface CompanionPreferences {
   nickname?: string; // How the assistant should address them
   personality: 'friendly' | 'professional' | 'playful' | 'supportive' | 'wise';
   communicationStyle: 'casual' | 'balanced' | 'formal';
+  // How the assistant adapts to user's communication
+  communicationAdaptation: CommunicationAdaptation;
   interests: string[];
   customInterests: string[];
   responseLength: 'brief' | 'balanced' | 'detailed';
@@ -91,6 +96,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
     nickname: '',
     personality: 'friendly',
     communicationStyle: 'casual',
+    communicationAdaptation: 'balanced', // Default to balanced
     interests: [],
     customInterests: [],
     responseLength: 'balanced',
@@ -524,7 +530,110 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
         </div>
       ),
     },
-    // Step 5: Family Mode (companion mode only)
+    // Step 5: Communication Adaptation (companion mode only)
+    ...(preferences.mode === 'companion' ? [{
+      id: 'adaptation',
+      title: 'How should I adapt to you?',
+      description: 'Choose how I communicate with you',
+      component: (
+        <div className="space-y-4">
+          <p className="text-center text-gray-400 text-sm mb-6">
+            Everyone communicates differently. How would you like me to respond?
+          </p>
+
+          <div className="space-y-3">
+            {/* Match Mode */}
+            <button
+              type="button"
+              onClick={() => setPreferences(prev => ({ ...prev, communicationAdaptation: 'match' }))}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                preferences.communicationAdaptation === 'match'
+                  ? 'border-green-500 bg-green-500/10'
+                  : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  preferences.communicationAdaptation === 'match' ? 'bg-green-500/20' : 'bg-gray-700'
+                }`}>
+                  <Smile className={`w-5 h-5 ${preferences.communicationAdaptation === 'match' ? 'text-green-400' : 'text-gray-400'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${preferences.communicationAdaptation === 'match' ? 'text-white' : 'text-gray-300'}`}>
+                      Match my energy
+                    </span>
+                    {preferences.communicationAdaptation === 'match' && <Check className="w-4 h-4 text-green-400" />}
+                  </div>
+                  <p className="text-xs text-gray-500">Mirror how I communicate - casual when I'm casual, excited when I'm excited</p>
+                </div>
+              </div>
+            </button>
+
+            {/* Balanced Mode */}
+            <button
+              type="button"
+              onClick={() => setPreferences(prev => ({ ...prev, communicationAdaptation: 'balanced' }))}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                preferences.communicationAdaptation === 'balanced'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  preferences.communicationAdaptation === 'balanced' ? 'bg-blue-500/20' : 'bg-gray-700'
+                }`}>
+                  <MessageCircle className={`w-5 h-5 ${preferences.communicationAdaptation === 'balanced' ? 'text-blue-400' : 'text-gray-400'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${preferences.communicationAdaptation === 'balanced' ? 'text-white' : 'text-gray-300'}`}>
+                      Keep it balanced
+                    </span>
+                    {preferences.communicationAdaptation === 'balanced' && <Check className="w-4 h-4 text-blue-400" />}
+                  </div>
+                  <p className="text-xs text-gray-500">Friendly and neutral - adapt to the situation naturally</p>
+                </div>
+              </div>
+            </button>
+
+            {/* Counterbalance Mode */}
+            <button
+              type="button"
+              onClick={() => setPreferences(prev => ({ ...prev, communicationAdaptation: 'counterbalance' }))}
+              className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                preferences.communicationAdaptation === 'counterbalance'
+                  ? 'border-purple-500 bg-purple-500/10'
+                  : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  preferences.communicationAdaptation === 'counterbalance' ? 'bg-purple-500/20' : 'bg-gray-700'
+                }`}>
+                  <Sun className={`w-5 h-5 ${preferences.communicationAdaptation === 'counterbalance' ? 'text-purple-400' : 'text-gray-400'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-medium ${preferences.communicationAdaptation === 'counterbalance' ? 'text-white' : 'text-gray-300'}`}>
+                      Be my counterbalance
+                    </span>
+                    {preferences.communicationAdaptation === 'counterbalance' && <Check className="w-4 h-4 text-purple-400" />}
+                  </div>
+                  <p className="text-xs text-gray-500">If I'm stressed, be calm. If I'm scattered, be focused. Help balance me out.</p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-gray-600 mt-4">
+            You can change this anytime in settings
+          </p>
+        </div>
+      ),
+    }] : []),
+    // Step 6: Family Mode (companion mode only)
     ...(preferences.mode === 'companion' ? [{
       id: 'family',
       title: 'Family Mode',

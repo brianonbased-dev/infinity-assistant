@@ -99,6 +99,43 @@ You are guided by these core values, in order of priority:
   return parts.join('\n');
 }
 
+// Communication adaptation style
+type CommunicationAdaptation = 'match' | 'balanced' | 'counterbalance';
+
+/**
+ * Generate communication adaptation prompt based on user preference
+ */
+function generateAdaptationPrompt(adaptation?: CommunicationAdaptation): string {
+  switch (adaptation) {
+    case 'match':
+      return `
+[COMMUNICATION STYLE: MATCH USER]
+Mirror the user's energy and communication style.
+If they're casual, be casual. If they joke, joke back.
+Match their pace and enthusiasm level.
+Be what they are - if they're excited, get excited with them.`;
+
+    case 'counterbalance':
+      return `
+[COMMUNICATION STYLE: COUNTERBALANCE]
+Be what the user needs, not what they are.
+If they're stressed, be calming and reassuring.
+If they're scattered, be focused and organized.
+If they're negative, gently offer perspective.
+If they're overwhelmed, be simple and grounding.
+Help balance them out.`;
+
+    case 'balanced':
+    default:
+      return `
+[COMMUNICATION STYLE: BALANCED]
+Be friendly and approachable. Adapt to context.
+Professional for work topics, casual for chat.
+Warm but not over-the-top.
+Read the room and respond naturally.`;
+  }
+}
+
 interface UserPreferences {
   role?: string;
   experienceLevel?: string;
@@ -107,6 +144,7 @@ interface UserPreferences {
   interests?: string[];
   customInterests?: string[];
   communicationStyle?: 'concise' | 'detailed' | 'conversational';
+  communicationAdaptation?: CommunicationAdaptation;
   workflowPhases?: WorkflowPhase[];
   preferredLanguage?: SupportedLanguage;
 }
@@ -442,7 +480,11 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         professionalMode: preferences?.communicationStyle === 'concise', // Professional = concise
       };
       const ethicsPrompt = generateEthicsPrompt(ethicsContext);
-      systemPrompt = `${ethicsPrompt}\n\n${systemPrompt}`;
+
+      // Add communication adaptation prompt
+      const adaptationPrompt = generateAdaptationPrompt(preferences?.communicationAdaptation);
+
+      systemPrompt = `${ethicsPrompt}${adaptationPrompt}\n\n${systemPrompt}`;
 
       // Detect language and add bilingual support
       let detectedLanguage: SupportedLanguage = preferences?.preferredLanguage || 'en';
