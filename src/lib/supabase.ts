@@ -51,6 +51,10 @@ export const TABLES = {
   ONBOARDING: 'assistant_onboarding',
   PRICING_TIERS: 'pricing_tiers',
   USER_PREFERENCES: 'user_preferences',
+  // Mesh network tables
+  USER_MESH_NODES: 'user_mesh_nodes',
+  MESH_CONNECTIONS: 'mesh_connections',
+  MESH_EVENTS: 'mesh_events',
 } as const;
 
 /**
