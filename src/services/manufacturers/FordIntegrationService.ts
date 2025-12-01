@@ -274,7 +274,7 @@ export class FordIntegrationService {
   // ==========================================================================
 
   async getVehicles(accessToken: string): Promise<FordVehicle[]> {
-    const response = await this.apiRequest(accessToken, '/users/vehicles');
+    const response = await this.apiRequest<{ vehicles: FordVehicle[] }>(accessToken, '/users/vehicles');
     return response.vehicles || [];
   }
 
@@ -282,7 +282,7 @@ export class FordIntegrationService {
     const cached = this.getFromCache(this.vehicleCache, vehicleId);
     if (cached) return cached;
 
-    const response = await this.apiRequest(accessToken, `/vehicles/v5/${vehicleId}/status`);
+    const response = await this.apiRequest<FordVehicleStatus>(accessToken, `/vehicles/v5/${vehicleId}/status`);
     this.setCache(this.vehicleCache, vehicleId, response);
     return response;
   }
@@ -291,7 +291,7 @@ export class FordIntegrationService {
     const cached = this.getFromCache(this.evStatusCache, vehicleId);
     if (cached) return cached;
 
-    const response = await this.apiRequest(accessToken, `/vehicles/v5/${vehicleId}/xevstatus`);
+    const response = await this.apiRequest<FordEVStatus>(accessToken, `/vehicles/v5/${vehicleId}/xevstatus`);
     this.setCache(this.evStatusCache, vehicleId, response);
     return response;
   }
@@ -313,7 +313,7 @@ export class FordIntegrationService {
     vehicleId: string,
     schedule: FordChargeSchedule[]
   ): Promise<FordCommandResponse> {
-    return this.apiRequest(
+    return this.apiRequest<FordCommandResponse>(
       accessToken,
       `/vehicles/v5/${vehicleId}/xevchargeschedule`,
       'PUT',
@@ -327,7 +327,7 @@ export class FordIntegrationService {
     departureTime: string,
     preconditioningEnabled: boolean
   ): Promise<FordCommandResponse> {
-    return this.apiRequest(
+    return this.apiRequest<FordCommandResponse>(
       accessToken,
       `/vehicles/v5/${vehicleId}/xevdeparturetime`,
       'PUT',
@@ -364,7 +364,7 @@ export class FordIntegrationService {
     zones: Record<string, boolean>
   ): Promise<FordCommandResponse> {
     // F-150 Lightning zone lighting control
-    return this.apiRequest(
+    return this.apiRequest<FordCommandResponse>(
       accessToken,
       `/vehicles/v5/${vehicleId}/zonelighting`,
       'PUT',
@@ -389,7 +389,7 @@ export class FordIntegrationService {
     vehicleId: string,
     commandId: string
   ): Promise<FordCommandResponse> {
-    return this.apiRequest(
+    return this.apiRequest<FordCommandResponse>(
       accessToken,
       `/vehicles/v5/${vehicleId}/commands/${commandId}`
     );
@@ -475,7 +475,11 @@ export class FordIntegrationService {
     command: string,
     params?: Record<string, unknown>
   ): Promise<FordCommandResponse> {
-    const response = await this.apiRequest(
+    const response = await this.apiRequest<{
+      commandId?: string;
+      status?: FordCommandResponse['status'];
+      message?: string;
+    }>(
       accessToken,
       `/vehicles/v5/${vehicleId}/${command}`,
       'POST',
@@ -489,12 +493,12 @@ export class FordIntegrationService {
     };
   }
 
-  private async apiRequest(
+  private async apiRequest<T = Record<string, unknown>>(
     accessToken: string,
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' = 'GET',
     body?: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Promise<T> {
     const url = `${this.config.baseUrl}${endpoint}`;
 
     const response = await fetch(url, {
@@ -513,7 +517,7 @@ export class FordIntegrationService {
       throw new Error(`Ford API error: ${response.status} - ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   private getFromCache<T>(cache: Map<string, { data: T; timestamp: number }>, key: string): T | null {

@@ -336,7 +336,7 @@ export class VWGroupIntegrationService {
   // ==========================================================================
 
   async getVehicles(accessToken: string, brand: VWBrand): Promise<VWVehicle[]> {
-    const response = await this.apiRequest(accessToken, brand, '/vehicle/v2/vehicles');
+    const response = await this.apiRequest<{ data?: VWVehicle[] }>(accessToken, brand, '/vehicle/v2/vehicles');
     return response.data || [];
   }
 
@@ -364,12 +364,11 @@ export class VWGroupIntegrationService {
     brand: VWBrand,
     vin: string
   ): Promise<VWChargingStatus> {
-    const response = await this.apiRequest(
+    return this.apiRequest<VWChargingStatus>(
       accessToken,
       brand,
       `/vehicle/v1/vehicles/${vin}/charging`
     );
-    return response as VWChargingStatus;
   }
 
   // ==========================================================================
@@ -735,13 +734,13 @@ export class VWGroupIntegrationService {
     };
   }
 
-  private async apiRequest(
+  private async apiRequest<T = Record<string, unknown>>(
     accessToken: string,
     brand: VWBrand,
     endpoint: string,
     method: 'GET' | 'POST' = 'GET',
     body?: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Promise<T> {
     const brandConfig = brandConfigs[brand];
     const url = `${brandConfig.baseUrl}${endpoint}`;
 
@@ -761,7 +760,7 @@ export class VWGroupIntegrationService {
       throw new Error(`VW Group API error: ${response.status} - ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   private getFromCache<T>(cache: Map<string, { data: T; timestamp: number }>, key: string): T | null {

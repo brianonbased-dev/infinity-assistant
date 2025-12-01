@@ -113,7 +113,8 @@ function saveSpeakerData(userId: string, data: StoredSpeakerData): void {
  * - File: Offline backup, user-editable
  */
 class HybridSpeakerStorage {
-  private supabase: SupabaseClient | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private supabase: any = null;
   private isOnline: boolean = true;
 
   /**

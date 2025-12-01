@@ -275,7 +275,7 @@ export class GMIntegrationService {
   // ==========================================================================
 
   async getVehicles(accessToken: string): Promise<GMVehicle[]> {
-    const response = await this.apiRequest(accessToken, '/vehicles');
+    const response = await this.apiRequest<{ vehicles?: GMVehicle[] }>(accessToken, '/vehicles');
     return response.vehicles || [];
   }
 
@@ -284,15 +284,15 @@ export class GMIntegrationService {
     if (cached) return cached;
 
     const [diagnostics, location, evStatus] = await Promise.all([
-      this.apiRequest(accessToken, `/vehicles/${vin}/diagnostics`),
-      this.apiRequest(accessToken, `/vehicles/${vin}/location`),
-      this.apiRequest(accessToken, `/vehicles/${vin}/ev/status`).catch(() => null),
+      this.apiRequest<GMDiagnostics>(accessToken, `/vehicles/${vin}/diagnostics`),
+      this.apiRequest<GMLocation>(accessToken, `/vehicles/${vin}/location`),
+      this.apiRequest<GMEVStatus>(accessToken, `/vehicles/${vin}/ev/status`).catch(() => undefined),
     ]);
 
     const status: GMVehicleStatus = {
-      diagnostics: diagnostics as GMDiagnostics,
-      location: location as GMLocation,
-      evStatus: evStatus as GMEVStatus | undefined,
+      diagnostics,
+      location,
+      evStatus,
     };
 
     this.setCache(this.statusCache, vin, status);
@@ -300,8 +300,7 @@ export class GMIntegrationService {
   }
 
   async getEVStatus(accessToken: string, vin: string): Promise<GMEVStatus> {
-    const response = await this.apiRequest(accessToken, `/vehicles/${vin}/ev/status`);
-    return response as GMEVStatus;
+    return this.apiRequest<GMEVStatus>(accessToken, `/vehicles/${vin}/ev/status`);
   }
 
   async getNearbyChargingStations(
@@ -314,7 +313,7 @@ export class GMIntegrationService {
     if (latitude) params.set('latitude', latitude.toString());
     if (longitude) params.set('longitude', longitude.toString());
 
-    const response = await this.apiRequest(
+    const response = await this.apiRequest<{ stations?: GMChargingStation[] }>(
       accessToken,
       `/vehicles/${vin}/ev/energy-assist/stations?${params.toString()}`
     );
@@ -514,7 +513,12 @@ export class GMIntegrationService {
     command: string,
     params?: Record<string, unknown>
   ): Promise<GMCommandResponse> {
-    const response = await this.apiRequest(
+    const response = await this.apiRequest<{
+      commandId?: string;
+      status?: GMCommandResponse['status'];
+      statusCode?: number;
+      message?: string;
+    }>(
       accessToken,
       `/vehicles/${vin}/${command}`,
       'POST',
@@ -522,19 +526,19 @@ export class GMIntegrationService {
     );
 
     return {
-      commandId: response.commandId as string || '',
-      status: response.status as GMCommandResponse['status'] || 'PENDING',
-      statusCode: response.statusCode as number || 200,
-      message: response.message as string,
+      commandId: response.commandId || '',
+      status: response.status || 'PENDING',
+      statusCode: response.statusCode || 200,
+      message: response.message,
     };
   }
 
-  private async apiRequest(
+  private async apiRequest<T = Record<string, unknown>>(
     accessToken: string,
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' = 'GET',
     body?: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Promise<T> {
     const url = `${this.config.baseUrl}${endpoint}`;
 
     const response = await fetch(url, {
@@ -553,7 +557,7 @@ export class GMIntegrationService {
       throw new Error(`GM API error: ${response.status} - ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   private getFromCache<T>(cache: Map<string, { data: T; timestamp: number }>, key: string): T | null {

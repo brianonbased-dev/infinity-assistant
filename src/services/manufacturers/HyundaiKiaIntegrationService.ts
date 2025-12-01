@@ -353,7 +353,7 @@ export class HyundaiKiaIntegrationService {
     brand: HKBrand,
     region: string
   ): Promise<HKVehicle[]> {
-    const response = await this.apiRequest(accessToken, brand, region, '/v2/vehicles');
+    const response = await this.apiRequest<{ vehicles?: HKVehicle[] }>(accessToken, brand, region, '/v2/vehicles');
     return response.vehicles || [];
   }
 
@@ -366,14 +366,14 @@ export class HyundaiKiaIntegrationService {
     const cached = this.getFromCache(this.statusCache, vehicleId);
     if (cached) return cached;
 
-    const response = await this.apiRequest(
+    const response = await this.apiRequest<HKVehicleStatus>(
       accessToken,
       brand,
       region,
       `/v2/vehicles/${vehicleId}/status`
     );
 
-    const status = response as HKVehicleStatus;
+    const status = response;
     this.setCache(this.statusCache, vehicleId, status);
     return status;
   }
@@ -740,14 +740,14 @@ export class HyundaiKiaIntegrationService {
     };
   }
 
-  private async apiRequest(
+  private async apiRequest<T = Record<string, unknown>>(
     accessToken: string,
     brand: HKBrand,
     region: string,
     endpoint: string,
     method: 'GET' | 'POST' = 'GET',
     body?: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Promise<T> {
     const brandConfig = brandConfigs[brand][region as keyof typeof brandConfigs[typeof brand]];
     const url = `${brandConfig.baseUrl}${endpoint}`;
 
@@ -767,7 +767,7 @@ export class HyundaiKiaIntegrationService {
       throw new Error(`HK API error: ${response.status} - ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   private getFromCache<T>(cache: Map<string, { data: T; timestamp: number }>, key: string): T | null {

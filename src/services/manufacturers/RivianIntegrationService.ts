@@ -328,7 +328,7 @@ export class RivianIntegrationService {
       }
     `;
 
-    const response = await this.graphqlRequest(accessToken, query);
+    const response = await this.graphqlRequest<{ currentUser?: { vehicles?: RivianVehicle[] } }>(accessToken, query);
     return response.data?.currentUser?.vehicles || [];
   }
 
@@ -474,7 +474,7 @@ export class RivianIntegrationService {
       }
     `;
 
-    const response = await this.graphqlRequest(accessToken, query, {
+    const response = await this.graphqlRequest<{ chargingStations?: RivianChargingStation[] }>(accessToken, query, {
       latitude,
       longitude,
       radius: radius || 50,
@@ -705,7 +705,13 @@ export class RivianIntegrationService {
       }
     `;
 
-    const response = await this.graphqlRequest(accessToken, mutation, {
+    const response = await this.graphqlRequest<{
+      sendVehicleCommand?: {
+        commandId?: string;
+        status?: string;
+        message?: string;
+      }
+    }>(accessToken, mutation, {
       vehicleId,
       command,
       variables,
@@ -713,16 +719,16 @@ export class RivianIntegrationService {
 
     return {
       commandId: response.data?.sendVehicleCommand?.commandId || '',
-      status: response.data?.sendVehicleCommand?.status || 'pending',
+      status: (response.data?.sendVehicleCommand?.status as RivianCommandResult['status']) || 'pending',
       message: response.data?.sendVehicleCommand?.message,
     };
   }
 
-  private async graphqlRequest(
+  private async graphqlRequest<T = Record<string, unknown>>(
     accessToken: string,
     query: string,
     variables?: Record<string, unknown>
-  ): Promise<{ data: Record<string, unknown> }> {
+  ): Promise<{ data: T }> {
     const response = await fetch(this.config.graphqlUrl, {
       method: 'POST',
       headers: {

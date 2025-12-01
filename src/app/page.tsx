@@ -16,6 +16,7 @@ import UnifiedSearchBar from '@/components/UnifiedSearchBar';
 import { BuilderOnboarding, UserPreferences } from '@/components/BuilderOnboarding';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useLocalPreferences } from '@/hooks/useLocalPreferences';
+import { CyberMondayCountdown } from '@/components/CyberMondayCountdown';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -305,12 +306,8 @@ function InfinityAssistantContent() {
         </div>
       </header>
 
-      {/* Cyber Monday Banner */}
-      <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 py-3 text-center">
-        <p className="text-white font-bold text-sm md:text-base animate-pulse">
-          🔥 CYBER MONDAY SPECIAL: 50% OFF all Pro plans! Use code <span className="bg-white/20 px-2 py-1 rounded">CYBER50</span> at checkout
-        </p>
-      </div>
+      {/* Cyber Monday Banner with Countdown */}
+      <CyberMondayCountdown />
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 md:py-20 text-center">

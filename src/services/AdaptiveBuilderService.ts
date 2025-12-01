@@ -128,6 +128,12 @@ export interface AdaptationResult {
   warnings: string[];
 }
 
+export interface BuildOutcome {
+  templateId: string;
+  outcome: 'success' | 'abandoned' | 'modified' | 'partial';
+  learnings: string[];
+}
+
 // ============================================================================
 // PERSONALITY MAPPING (from existing profile data)
 // ============================================================================
@@ -368,13 +374,18 @@ export class AdaptiveBuilderService {
       .slice(0, 5);
 
     // Get build history from builder profile if available
-    const buildHistory: BuildOutcome[] = [];
+    const buildHistory: BuildHistoryItem[] = [];
     if (profile.builder?.buildHistory) {
       for (const build of profile.builder.buildHistory.slice(-10)) {
+        // Use type assertion to handle optional properties
+        const buildAny = build as any;
         buildHistory.push({
           templateId: build.templateId,
-          outcome: build.outcome,
-          learnings: [], // Populated elsewhere
+          templateName: buildAny.templateName || build.projectName || 'Unknown',
+          completedAt: new Date(build.completedAt || Date.now()),
+          outcome: build.outcome as BuildHistoryItem['outcome'],
+          feedback: buildAny.feedback,
+          tokensUsed: build.tokensUsed || 0,
         });
       }
     }

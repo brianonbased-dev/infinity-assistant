@@ -62,6 +62,7 @@ export interface WisdomEntry {
   id: string;
   content: string;
   source?: string;           // Where this was learned
+  domain?: string;           // Domain this wisdom applies to
   dateAdded: string;
   dateModified?: string;
   userEdited: boolean;       // Was this manually edited by user?
@@ -75,6 +76,7 @@ export interface PatternEntry {
   description: string;
   useCase: string;           // When to apply this pattern
   example?: string;
+  domain?: string;           // Domain this pattern applies to
   dateAdded: string;
   dateModified?: string;
   userEdited: boolean;
@@ -87,6 +89,7 @@ export interface GotchaEntry {
   problem: string;
   solution: string;
   context?: string;          // When this gotcha applies
+  domain?: string;           // Domain this gotcha applies to
   dateAdded: string;
   dateModified?: string;
   userEdited: boolean;
@@ -102,6 +105,7 @@ export interface FactEntry {
   dateModified?: string;
   userEdited: boolean;
   neverForget: boolean;      // User marked as critical
+  verified?: boolean;        // Has this fact been verified?
 }
 
 export interface UserMemoryPreferences {

@@ -41,8 +41,13 @@ import { Button } from '@/components/ui/button';
 import { BaseNetworkIndicator } from './NetworkIndicator';
 
 // ============================================================================
-// PRICING DATA
+// PRICING DATA - Option A (Landing Page Prices)
+// Cyber Monday: 50% OFF with code CYBER50 (ends Dec 8, 2025)
 // ============================================================================
+
+// Cyber Monday countdown - ends Dec 8, 2025 at midnight
+export const CYBER_MONDAY_END = new Date('2025-12-08T23:59:59');
+export const CYBER_MONDAY_DISCOUNT = 0.50; // 50% off
 
 const ASSISTANT_TIERS: PricingTier[] = [
   {
@@ -53,90 +58,72 @@ const ASSISTANT_TIERS: PricingTier[] = [
     brianDiscount: 0,
     features: [
       '20 searches per day',
-      'Basic search mode',
+      'Knowledge base access (W/P/G)',
+      'Auto-research for missing topics',
       'Community support',
-      'Web results only',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    usdPrice: 9.99,
-    brianPrice: 7999, // ~20% discount in $BRIAN
+    usdPrice: 29, // $29/mo - Cyber Monday: $14.50
+    brianPrice: 23200, // ~20% discount in $BRIAN
     brianDiscount: 20,
     popular: true,
     features: [
-      'Unlimited searches',
-      'Search + Assist modes',
-      'Knowledge base access',
+      '100 queries per day',
+      'AI-powered conversations',
+      'Deep research with synthesis',
+      'Memory & context retention',
+      'Multi-language support (15+)',
       'Priority support',
-      'Conversation memory',
-      'Multi-language support',
-    ],
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    usdPrice: 29.99,
-    brianPrice: 19999, // ~33% discount in $BRIAN
-    brianDiscount: 33,
-    features: [
-      'Everything in Pro',
-      'Build mode access',
-      'Custom integrations',
-      'Dedicated support',
-      'Team collaboration',
-      'API access',
-      'White-label options',
     ],
   },
 ];
 
 const BUILDER_TIERS: PricingTier[] = [
   {
-    id: 'starter',
-    name: 'Starter',
+    id: 'free',
+    name: 'Free',
     usdPrice: 0,
     brianPrice: 0,
     brianDiscount: 0,
     features: [
       '1 project per month',
       'Basic templates',
-      'Community support',
       'Vercel deployment',
+      'Community support',
     ],
   },
   {
-    id: 'creator',
-    name: 'Creator',
-    usdPrice: 19.99,
-    brianPrice: 14999, // 25% discount
-    brianDiscount: 25,
+    id: 'pro',
+    name: 'Pro',
+    usdPrice: 49, // $49/mo - Cyber Monday: $24.50
+    brianPrice: 39200, // ~20% discount in $BRIAN
+    brianDiscount: 20,
     popular: true,
     features: [
-      '10 projects per month',
-      'All templates',
-      'Priority builds',
-      'Custom domains',
+      'All Assistant Pro features',
+      'Unlimited queries',
+      'Code generation & patterns',
+      'Architecture guidance',
       'GitHub integration',
-      'Email support',
+      'Priority builds',
     ],
   },
   {
-    id: 'agency',
-    name: 'Agency',
-    usdPrice: 99.99,
-    brianPrice: 59999, // 40% discount
-    brianDiscount: 40,
+    id: 'business',
+    name: 'Business',
+    usdPrice: 149, // $149/mo - Cyber Monday: $74.50
+    brianPrice: 104300, // ~30% discount in $BRIAN
+    brianDiscount: 30,
     features: [
-      'Unlimited projects',
-      'White-label builds',
-      'Team seats (10)',
-      'API access',
+      'All Builder Pro features',
+      'Up to 10 team members',
+      'Shared knowledge base',
       'Custom templates',
-      'Dedicated support',
+      'Priority support',
       'SLA guarantee',
-      'Priority queue',
     ],
   },
 ];
