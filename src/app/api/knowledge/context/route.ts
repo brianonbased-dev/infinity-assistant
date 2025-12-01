@@ -35,22 +35,23 @@ export async function POST(request: NextRequest) {
     // Build context
     const context = await knowledgeHelpers.buildContext(topic.trim());
 
+    const ctx = context as any;
     logger.info('[Knowledge Context API] Context built', {
       topic,
-      keyFactsCount: context.keyFacts?.length || 0,
-      relatedTopicsCount: context.relatedTopics?.length || 0,
+      keyFactsCount: ctx.keyFacts?.length || 0,
+      relatedTopicsCount: ctx.relatedTopics?.length || 0,
     });
 
     return NextResponse.json({
       success: true,
       context: {
-        topic: context.topic,
-        keyFacts: context.keyFacts || [],
-        relatedTopics: context.relatedTopics || [],
-        commonMistakes: context.commonMistakes || [],
-        bestPractices: context.bestPractices || [],
-        openQuestions: context.openQuestions || [],
-        confidence: context.confidence,
+        topic: ctx.topic,
+        keyFacts: ctx.keyFacts || [],
+        relatedTopics: ctx.relatedTopics || [],
+        commonMistakes: ctx.commonMistakes || [],
+        bestPractices: ctx.bestPractices || [],
+        openQuestions: ctx.openQuestions || [],
+        confidence: ctx.confidence,
       },
     });
   } catch (error) {

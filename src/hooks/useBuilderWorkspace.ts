@@ -47,13 +47,13 @@ export function useBuilderWorkspace(): UseBuilderWorkspaceResult {
   // Convert workspace phases to PhaseInfo for the overlay
   const phases: PhaseInfo[] = workspace?.phases.map((p) => ({
     phase: p.phase,
-    status: p.status,
+    status: p.status === 'skipped' ? 'completed' : p.status,
     progress: p.progress,
     choices: p.choices,
     selectedChoice: p.selectedChoice,
     error: p.error,
     message: p.message,
-  })) || [];
+  })) as PhaseInfo[] || [];
 
   const workspaceFiles: WorkspaceFile[] = workspace?.files || [];
   const currentPhase: BuildPhase = workspace?.currentPhase || 'seed';

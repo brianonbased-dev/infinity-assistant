@@ -116,11 +116,11 @@ export {
   getParams
 } from './apiMiddleware';
 
-// EV Module - consolidated EV functionality
-export * from './EV';
+// EV Module - disabled for initial release (Phase 2)
+// export * from './EV';
 
 // Build Module - consolidated build/deployment functionality
 export * from './build';
 
-// Cross-Service Integrations
-export * from './integrations';
+// Cross-Service Integrations - disabled for initial release (Phase 2)
+// export * from './integrations';

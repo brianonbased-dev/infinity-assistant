@@ -607,7 +607,9 @@ export default function IntegrationsManager({
                               </span>
                             )}
                             {config.supportsBrowserAccess && (
-                              <Globe className="w-3 h-3 text-gray-500" title="Browser access supported" />
+                              <span title="Browser access supported">
+                                <Globe className="w-3 h-3 text-gray-500" />
+                              </span>
                             )}
                           </div>
                         </div>

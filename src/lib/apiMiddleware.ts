@@ -277,7 +277,7 @@ export function withMiddleware(
 
       // Rate limiting
       if (options.rateLimit) {
-        const rateLimitKey = req.headers.get('x-forwarded-for') || req.ip || 'unknown';
+        const rateLimitKey = req.headers.get('x-forwarded-for') || (req as any).ip || 'unknown';
         if (!checkRateLimit(rateLimitKey, options.rateLimit)) {
           return error('RATE_LIMIT_EXCEEDED', 'Too many requests', 429);
         }

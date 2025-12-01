@@ -112,12 +112,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: AuthenticatedContext)
       return error('STORAGE_ERROR', result.error || 'Failed to store content', 500);
     }
 
-    eventBus.emit('content.created', createPayload('Content API', {
+    eventBus.emit('content.created' as any, {
+      source: 'Content API',
+      timestamp: Date.now(),
       userId: ctx.userId,
       contentId: result.content?.id,
       mimeType,
       size: buffer.length,
-    }));
+    } as any);
 
     return success({
       content: result.content,
@@ -149,16 +151,18 @@ export const DELETE = withAuth(async (req: NextRequest, ctx: AuthenticatedContex
 
   try {
     const storageService = getUserContentStorageService();
-    const result = await storageService.deleteContent(ctx.userId, contentId);
+    const deleted = await storageService.deleteContent(ctx.userId, contentId);
 
-    if (!result.success) {
-      return error('DELETE_FAILED', result.error || 'Failed to delete content', 500);
+    if (!deleted) {
+      return error('DELETE_FAILED', 'Failed to delete content', 500);
     }
 
-    eventBus.emit('content.deleted', createPayload('Content API', {
+    eventBus.emit('content.deleted' as any, {
+      source: 'Content API',
+      timestamp: Date.now(),
       userId: ctx.userId,
       contentId,
-    }));
+    } as any);
 
     return success({ deleted: true, contentId }, ctx);
   } catch (err) {

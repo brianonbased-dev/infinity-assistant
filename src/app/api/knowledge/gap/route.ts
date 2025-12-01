@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const supabase = getSupabaseClient();
-      await supabase.from(TABLES.KNOWLEDGE_GAPS || 'knowledge_gaps').insert({
+      await supabase.from((TABLES as any).KNOWLEDGE_GAPS || 'knowledge_gaps').insert({
         id: gapId,
         query: trimmedQuery,
         user_id: userId || 'anonymous',
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         const supabase = getSupabaseClient();
 
         for (const knowledge of compressedKnowledge) {
-          await supabase.from(TABLES.KNOWLEDGE_BASE || 'knowledge_base').upsert({
+          await supabase.from((TABLES as any).KNOWLEDGE_BASE || 'knowledge_base').upsert({
             id: knowledge.id,
             type: knowledge.type,
             content: knowledge.content,
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Update gap status
-        await supabase.from(TABLES.KNOWLEDGE_GAPS || 'knowledge_gaps').update({
+        await supabase.from((TABLES as any).KNOWLEDGE_GAPS || 'knowledge_gaps').update({
           status: 'resolved',
           knowledge_created: compressedKnowledge.map(k => k.id),
           resolved_at: new Date().toISOString(),
@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
 
     // Get gap statistics
     const { data: gaps, error } = await supabase
-      .from(TABLES.KNOWLEDGE_GAPS || 'knowledge_gaps')
+      .from((TABLES as any).KNOWLEDGE_GAPS || 'knowledge_gaps')
       .select('status, created_at')
       .order('created_at', { ascending: false })
       .limit(100);

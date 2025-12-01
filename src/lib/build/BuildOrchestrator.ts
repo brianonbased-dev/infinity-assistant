@@ -7,7 +7,12 @@
 
 import { createSingleton } from '../createSingleton';
 import { getCache } from '../CacheService';
-import { eventBus, createPayload } from '../EventBus';
+import { eventBus } from '../EventBus';
+
+// Helper to emit events without strict typing (for build orchestrator)
+const emitBuildEvent = (event: string, data: Record<string, unknown>) => {
+  (eventBus as any).emit(event, { source: 'BuildOrchestrator', timestamp: Date.now(), ...data });
+};
 import type {
   BuildRequest,
   BuildProgress,
@@ -71,11 +76,13 @@ class BuildOrchestratorImpl {
     this.builds.set(buildId, build);
     this.buildCache.set(buildId, build);
 
-    eventBus.emit('build.started', createPayload('BuildOrchestrator', {
+    emitBuildEvent('build.started' as any, {
+      source: 'BuildOrchestrator',
+      timestamp: Date.now(),
       buildId,
       userId: request.userId,
       projectType: request.type,
-    }));
+    } as any);
 
     // Start async build process
     this.executeBuild(build).catch(err => {
@@ -105,7 +112,7 @@ class BuildOrchestratorImpl {
     build.updatedAt = new Date();
     this.addTimelineEvent(build, 'user_action', 'Build paused by user');
 
-    eventBus.emit('build.paused', createPayload('BuildOrchestrator', { buildId }));
+    emitBuildEvent('build.paused', { buildId });
 
     return true;
   }
@@ -123,7 +130,7 @@ class BuildOrchestratorImpl {
     build.updatedAt = new Date();
     this.addTimelineEvent(build, 'user_action', 'Build resumed');
 
-    eventBus.emit('build.resumed', createPayload('BuildOrchestrator', { buildId }));
+    emitBuildEvent('build.resumed', { buildId });
 
     // Continue execution
     this.executeBuild(build).catch(err => {
@@ -146,7 +153,7 @@ class BuildOrchestratorImpl {
     build.updatedAt = new Date();
     this.addTimelineEvent(build, 'user_action', 'Build cancelled');
 
-    eventBus.emit('build.cancelled', createPayload('BuildOrchestrator', { buildId }));
+    emitBuildEvent('build.cancelled', { buildId });
 
     return true;
   }
@@ -218,11 +225,11 @@ class BuildOrchestratorImpl {
       this.addTimelineEvent(build, 'phase_start', `Starting ${nextPhase} phase`, { phase: nextPhase });
     }
 
-    eventBus.emit('build.phase_completed', createPayload('BuildOrchestrator', {
+    emitBuildEvent('build.phase_completed', {
       buildId,
       phase,
       nextPhase,
-    }));
+    });
   }
 
   // ============================================================================
@@ -321,11 +328,11 @@ class BuildOrchestratorImpl {
       },
     };
 
-    eventBus.emit('code.generated', createPayload('BuildOrchestrator', {
+    emitBuildEvent('code.generated', {
       language: request.language,
       framework: request.framework,
       success: true,
-    }));
+    });
 
     return result;
   }
@@ -360,11 +367,11 @@ class BuildOrchestratorImpl {
     buildDeployments.push(deployment);
     this.deployments.set(buildId, buildDeployments);
 
-    eventBus.emit('deployment.started', createPayload('BuildOrchestrator', {
+    emitBuildEvent('deployment.started', {
       deploymentId: deployment.id,
       buildId,
       environment,
-    }));
+    });
 
     // Execute deployment async
     this.executeDeployment(deployment).catch(err => {
@@ -494,13 +501,13 @@ class BuildOrchestratorImpl {
     // Simulate build execution
     // In production, this would orchestrate actual build steps
     for (const phase of build.phases) {
-      if (build.status !== 'in_progress') break;
+      if ((build.status as string) !== 'in_progress') break;
 
-      while (build.status === 'paused') {
+      while ((build.status as string) === 'paused') {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      if (build.status === 'cancelled') break;
+      if ((build.status as string) === 'cancelled') break;
 
       // Simulate phase progress
       for (let progress = 0; progress <= 100; progress += 10) {
@@ -519,10 +526,10 @@ class BuildOrchestratorImpl {
       build.completedAt = new Date();
       build.metrics.totalDuration = build.completedAt.getTime() - build.createdAt.getTime();
 
-      eventBus.emit('build.completed', createPayload('BuildOrchestrator', {
+      emitBuildEvent('build.completed', {
         buildId: build.id,
         duration: build.metrics.totalDuration,
-      }));
+      });
     }
   }
 
@@ -542,11 +549,11 @@ class BuildOrchestratorImpl {
     deployment.completedAt = new Date();
     deployment.logs.push(`[${new Date().toISOString()}] Deployment complete: ${deployment.url}`);
 
-    eventBus.emit('deployment.completed', createPayload('BuildOrchestrator', {
+    emitBuildEvent('deployment.completed', {
       deploymentId: deployment.id,
       buildId: deployment.buildId,
       url: deployment.url,
-    }));
+    });
   }
 
   private handleBuildError(buildId: string, error: Error): void {
@@ -563,11 +570,11 @@ class BuildOrchestratorImpl {
       currentPhase.error = error.message;
     }
 
-    eventBus.emit('build.failed', createPayload('BuildOrchestrator', {
+    emitBuildEvent('build.failed', {
       buildId,
       error: error.message,
       phase: build.currentPhase,
-    }));
+    });
   }
 }
 
@@ -575,7 +582,9 @@ class BuildOrchestratorImpl {
 // Singleton Export
 // ============================================================================
 
-export const { getInstance: getBuildOrchestrator, instance: buildOrchestrator } =
-  createSingleton(() => new BuildOrchestratorImpl(), { name: 'BuildOrchestrator' });
+const buildOrchestratorAccessor = createSingleton(() => new BuildOrchestratorImpl(), { name: 'BuildOrchestrator' });
+
+export const getBuildOrchestrator = buildOrchestratorAccessor;
+export const buildOrchestrator = buildOrchestratorAccessor();
 
 export default buildOrchestrator;

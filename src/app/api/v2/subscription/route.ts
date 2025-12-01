@@ -164,12 +164,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: AuthenticatedContext)
           return error('DATABASE_ERROR', 'Failed to update subscription', 500);
         }
 
-        eventBus.emit('subscription.changed', createPayload('Subscription API', {
+        eventBus.emit('subscription.changed' as any, {
+          source: 'Subscription API',
+          timestamp: Date.now(),
           userId: ctx.userId,
           action,
           fromTier: current?.tier || 'free',
           toTier: newTier,
-        }));
+        } as any);
 
         return success({
           success: true,
@@ -196,10 +198,12 @@ export const POST = withAuth(async (req: NextRequest, ctx: AuthenticatedContext)
           return error('DATABASE_ERROR', 'Failed to cancel subscription', 500);
         }
 
-        eventBus.emit('subscription.canceled', createPayload('Subscription API', {
+        eventBus.emit('subscription.canceled' as any, {
+          source: 'Subscription API',
+          timestamp: Date.now(),
           userId: ctx.userId,
           tier: current.tier,
-        }));
+        } as any);
 
         return success({
           success: true,
@@ -226,10 +230,12 @@ export const POST = withAuth(async (req: NextRequest, ctx: AuthenticatedContext)
           return error('DATABASE_ERROR', 'Failed to reactivate subscription', 500);
         }
 
-        eventBus.emit('subscription.reactivated', createPayload('Subscription API', {
+        eventBus.emit('subscription.reactivated' as any, {
+          source: 'Subscription API',
+          timestamp: Date.now(),
           userId: ctx.userId,
           tier: current.tier,
-        }));
+        } as any);
 
         return success({
           success: true,

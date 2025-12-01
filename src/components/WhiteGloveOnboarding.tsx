@@ -62,9 +62,9 @@ type OnboardingStep = 'intro' | 'account' | 'payment' | 'processing';
 // ============================================================================
 
 const STATUS_CONFIG: Record<WhiteGloveStatus, { label: string; icon: React.ReactNode; color: string }> = {
-  initializing: { label: 'Initializing...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-blue-400' },
-  creating_accounts: { label: 'Creating accounts...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-purple-400' },
-  retrieving_credentials: { label: 'Retrieving credentials...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-pink-400' },
+  analyzing: { label: 'Analyzing requirements...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-blue-400' },
+  awaiting_integrations: { label: 'Awaiting integrations...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-purple-400' },
+  integrations_ready: { label: 'Integrations ready', icon: <CheckCircle2 className="w-5 h-5" />, color: 'text-pink-400' },
   configuring_environment: { label: 'Configuring environment...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-orange-400' },
   starting_build: { label: 'Starting build...', icon: <Loader2 className="w-5 h-5 animate-spin" />, color: 'text-green-400' },
   building: { label: 'Building your project...', icon: <Sparkles className="w-5 h-5" />, color: 'text-yellow-400' },
@@ -583,7 +583,7 @@ export default function WhiteGloveOnboarding({
 
   // Render processing step
   const renderProcessingStep = () => {
-    const status = session?.status || 'initializing';
+    const status = session?.status || 'analyzing';
     const statusConfig = STATUS_CONFIG[status];
 
     return (
@@ -641,18 +641,18 @@ export default function WhiteGloveOnboarding({
           </div>
         )}
 
-        {/* Created Accounts */}
-        {session && session.createdAccounts.length > 0 && (
+        {/* Connected Integrations */}
+        {session && session.connectedIntegrations.length > 0 && (
           <div className="max-w-md mx-auto">
-            <h3 className="text-sm font-medium text-gray-400 mb-3">Accounts Created</h3>
+            <h3 className="text-sm font-medium text-gray-400 mb-3">Connected Integrations</h3>
             <div className="flex flex-wrap gap-2">
-              {session.createdAccounts.map((account) => (
+              {session.connectedIntegrations.map((integrationId) => (
                 <span
-                  key={account.provider}
+                  key={integrationId}
                   className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-full text-sm flex items-center gap-2"
                 >
                   <Check className="w-4 h-4" />
-                  {account.provider}
+                  {integrationId}
                 </span>
               ))}
             </div>

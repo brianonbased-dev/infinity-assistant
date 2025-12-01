@@ -45,6 +45,7 @@ import {
   Plus,
   Mail,
   Lock,
+  Code,
 } from 'lucide-react';
 
 interface WizardStep {

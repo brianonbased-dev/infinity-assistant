@@ -101,6 +101,22 @@ export interface CredentialExtractionResult {
   error?: string;
 }
 
+/** User input for white glove onboarding */
+export interface WhiteGloveUserInput {
+  templateId?: string;
+  projectName?: string;
+  customVariables?: Record<string, string>;
+  email?: string;
+  fullName?: string;
+  phone?: string;
+  masterPassword?: string;
+  autoGeneratePasswords?: boolean;
+  paymentMethod?: {
+    type: string;
+    cardToken: string;
+  };
+}
+
 // ============================================================================
 // PROVIDER TO VARIABLE MAPPING
 // ============================================================================

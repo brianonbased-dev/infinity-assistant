@@ -287,7 +287,7 @@ export function useConversationFlow(buildId: string): UseConversationFlowResult 
         state.activeConversation.id,
         'user',
         content,
-        attachments
+        attachments as any
       );
 
       // Trigger assistant response

@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
         connectionType: connection.connectionType,
         strength: connection.strength,
         explanation: connection.explanation,
-        evidence: connection.evidence || [],
-        bridgingConcepts: connection.bridgingConcepts || [],
+        evidence: (connection as any).evidence || [],
+        bridgingConcepts: (connection as any).bridgingConcepts || [],
       },
     });
   } catch (error) {

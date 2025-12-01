@@ -168,7 +168,6 @@ const styles = {
   button: (variant: 'primary' | 'secondary' | 'danger' = 'primary') => ({
     padding: '8px 16px',
     borderRadius: '6px',
-    border: 'none',
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: 500,

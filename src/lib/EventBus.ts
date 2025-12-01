@@ -39,6 +39,11 @@ export type EventType =
   | 'build.completed'
   | 'build.failed'
   | 'build.cancelled'
+  | 'build.paused'
+  | 'build.resumed'
+  | 'build.phase_completed'
+  // Code generation events
+  | 'code.generated'
   // Deployment events
   | 'deployment.started'
   | 'deployment.progress'
@@ -51,6 +56,16 @@ export type EventType =
   | 'user.logout'
   | 'user.updated'
   | 'user.deleted'
+  // Content events
+  | 'content.created'
+  | 'content.deleted'
+  // Memory events
+  | 'memory.stored'
+  | 'memory.cleared'
+  // Subscription events
+  | 'subscription.changed'
+  | 'subscription.canceled'
+  | 'subscription.reactivated'
   // Billing events
   | 'billing.subscription_created'
   | 'billing.subscription_updated'

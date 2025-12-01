@@ -49,3 +49,300 @@ body {
   font-family: 'Monaco', 'Menlo', monospace;
   font-size: 0.875em;
 }
+
+/* ============================================================================
+ * $BRIAN TOKEN THEME
+ * Green color scheme for crypto payments
+ * ============================================================================ */
+
+:root {
+  /* $BRIAN Green Colors */
+  --brian-green: #00D971;
+  --brian-green-light: #00FF88;
+  --brian-green-dark: #00B35A;
+  --brian-green-darker: #008A45;
+
+  /* $BRIAN Shadows */
+  --brian-shadow: 0 4px 14px 0 rgba(0, 217, 113, 0.3);
+  --brian-shadow-lg: 0 10px 40px 0 rgba(0, 217, 113, 0.25);
+  --brian-glow: 0 0 20px rgba(0, 217, 113, 0.4);
+}
+
+/* Tailwind-style utility classes for $BRIAN */
+.text-brian-green { color: var(--brian-green); }
+.text-brian-green-light { color: var(--brian-green-light); }
+.text-brian-green-dark { color: var(--brian-green-dark); }
+
+.bg-brian-green { background-color: var(--brian-green); }
+.bg-brian-green-light { background-color: var(--brian-green-light); }
+.bg-brian-green-dark { background-color: var(--brian-green-dark); }
+
+.border-brian-green { border-color: var(--brian-green); }
+.border-brian-green-light { border-color: var(--brian-green-light); }
+
+.shadow-brian { box-shadow: var(--brian-shadow); }
+.shadow-brian-lg { box-shadow: var(--brian-shadow-lg); }
+.glow-brian { box-shadow: var(--brian-glow); }
+
+/* $BRIAN Mode - Applied when .brian-mode class is on container */
+.brian-mode {
+  /* Update scrollbar in brian mode */
+  --scrollbar-thumb: rgba(0, 217, 113, 0.5);
+  --scrollbar-thumb-hover: rgba(0, 217, 113, 0.7);
+}
+
+.brian-mode ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.brian-mode ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* $BRIAN Button styles */
+.btn-brian {
+  background: linear-gradient(135deg, var(--brian-green) 0%, var(--brian-green-dark) 100%);
+  color: #000;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-brian:hover {
+  background: linear-gradient(135deg, var(--brian-green-light) 0%, var(--brian-green) 100%);
+  box-shadow: var(--brian-shadow);
+  transform: translateY(-1px);
+}
+
+.btn-brian:active {
+  transform: translateY(0);
+}
+
+/* $BRIAN Card styles */
+.card-brian {
+  border: 1px solid rgba(0, 217, 113, 0.3);
+  background: linear-gradient(180deg, rgba(0, 217, 113, 0.1) 0%, rgba(0, 217, 113, 0.02) 100%);
+}
+
+.card-brian:hover {
+  border-color: rgba(0, 217, 113, 0.5);
+  box-shadow: var(--brian-shadow);
+}
+
+/* $BRIAN Badge */
+.badge-brian {
+  background: rgba(0, 217, 113, 0.15);
+  color: var(--brian-green);
+  border: 1px solid rgba(0, 217, 113, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* $BRIAN Gradient text */
+.text-gradient-brian {
+  background: linear-gradient(135deg, var(--brian-green-light) 0%, var(--brian-green) 50%, var(--brian-green-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* $BRIAN Animation */
+@keyframes brian-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 217, 113, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 217, 113, 0);
+  }
+}
+
+.animate-brian-pulse {
+  animation: brian-pulse 2s infinite;
+}
+
+/* Purple shadow for non-brian mode comparison */
+.shadow-purple-lg {
+  box-shadow: 0 10px 40px 0 rgba(139, 92, 246, 0.25);
+}
+
+/* ============================================================================
+ * USDC STABLECOIN THEME
+ * Blue color scheme for USDC payments (same price as USD)
+ * ============================================================================ */
+
+:root {
+  /* USDC Blue Colors - Official USDC brand blue */
+  --usdc-blue: #2775CA;
+  --usdc-blue-light: #4A9EE3;
+  --usdc-blue-dark: #1E5FA0;
+  --usdc-blue-darker: #164A7D;
+
+  /* USDC Shadows */
+  --usdc-shadow: 0 4px 14px 0 rgba(39, 117, 202, 0.3);
+  --usdc-shadow-lg: 0 10px 40px 0 rgba(39, 117, 202, 0.25);
+  --usdc-glow: 0 0 20px rgba(39, 117, 202, 0.4);
+}
+
+/* Tailwind-style utility classes for USDC */
+.text-usdc-blue { color: var(--usdc-blue); }
+.text-usdc-blue-light { color: var(--usdc-blue-light); }
+.text-usdc-blue-dark { color: var(--usdc-blue-dark); }
+
+.bg-usdc-blue { background-color: var(--usdc-blue); }
+.bg-usdc-blue-light { background-color: var(--usdc-blue-light); }
+.bg-usdc-blue-dark { background-color: var(--usdc-blue-dark); }
+
+.border-usdc-blue { border-color: var(--usdc-blue); }
+.border-usdc-blue-light { border-color: var(--usdc-blue-light); }
+
+.shadow-usdc { box-shadow: var(--usdc-shadow); }
+.shadow-usdc-lg { box-shadow: var(--usdc-shadow-lg); }
+.glow-usdc { box-shadow: var(--usdc-glow); }
+
+/* USDC Mode - Applied when .usdc-mode class is on container */
+.usdc-mode {
+  --scrollbar-thumb: rgba(39, 117, 202, 0.5);
+  --scrollbar-thumb-hover: rgba(39, 117, 202, 0.7);
+}
+
+.usdc-mode ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.usdc-mode ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* USDC Button styles */
+.btn-usdc {
+  background: linear-gradient(135deg, var(--usdc-blue) 0%, var(--usdc-blue-dark) 100%);
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-usdc:hover {
+  background: linear-gradient(135deg, var(--usdc-blue-light) 0%, var(--usdc-blue) 100%);
+  box-shadow: var(--usdc-shadow);
+  transform: translateY(-1px);
+}
+
+.btn-usdc:active {
+  transform: translateY(0);
+}
+
+/* USDC Card styles */
+.card-usdc {
+  border: 1px solid rgba(39, 117, 202, 0.3);
+  background: linear-gradient(180deg, rgba(39, 117, 202, 0.1) 0%, rgba(39, 117, 202, 0.02) 100%);
+}
+
+.card-usdc:hover {
+  border-color: rgba(39, 117, 202, 0.5);
+  box-shadow: var(--usdc-shadow);
+}
+
+/* USDC Badge */
+.badge-usdc {
+  background: rgba(39, 117, 202, 0.15);
+  color: var(--usdc-blue);
+  border: 1px solid rgba(39, 117, 202, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* USDC Gradient text */
+.text-gradient-usdc {
+  background: linear-gradient(135deg, var(--usdc-blue-light) 0%, var(--usdc-blue) 50%, var(--usdc-blue-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* USDC Animation */
+@keyframes usdc-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(39, 117, 202, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(39, 117, 202, 0);
+  }
+}
+
+.animate-usdc-pulse {
+  animation: usdc-pulse 2s infinite;
+}
+
+/* ============================================================================
+ * BASE NETWORK THEME
+ * Coinbase's L2 network - blue color scheme
+ * ============================================================================ */
+
+:root {
+  /* Base Blue Colors - Official Base brand */
+  --base-blue: #0052FF;
+  --base-blue-light: #3B7FFF;
+  --base-blue-dark: #0041CC;
+  --base-blue-darker: #003399;
+
+  /* Base Shadows */
+  --base-shadow: 0 4px 14px 0 rgba(0, 82, 255, 0.3);
+  --base-shadow-lg: 0 10px 40px 0 rgba(0, 82, 255, 0.25);
+  --base-glow: 0 0 20px rgba(0, 82, 255, 0.4);
+}
+
+/* Tailwind-style utility classes for Base */
+.text-base-blue { color: var(--base-blue); }
+.text-base-blue-light { color: var(--base-blue-light); }
+.text-base-blue-dark { color: var(--base-blue-dark); }
+
+.bg-base-blue { background-color: var(--base-blue); }
+.bg-base-blue-light { background-color: var(--base-blue-light); }
+.bg-base-blue-dark { background-color: var(--base-blue-dark); }
+
+.border-base-blue { border-color: var(--base-blue); }
+.border-base-blue-light { border-color: var(--base-blue-light); }
+
+.shadow-base { box-shadow: var(--base-shadow); }
+.shadow-base-lg { box-shadow: var(--base-shadow-lg); }
+.glow-base { box-shadow: var(--base-glow); }
+
+/* Base Button styles */
+.btn-base {
+  background: linear-gradient(135deg, var(--base-blue) 0%, var(--base-blue-dark) 100%);
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-base:hover {
+  background: linear-gradient(135deg, var(--base-blue-light) 0%, var(--base-blue) 100%);
+  box-shadow: var(--base-shadow);
+  transform: translateY(-1px);
+}
+
+.btn-base:active {
+  transform: translateY(0);
+}
+
+/* Base Badge */
+.badge-base {
+  background: rgba(0, 82, 255, 0.15);
+  color: var(--base-blue);
+  border: 1px solid rgba(0, 82, 255, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Base Gradient text */
+.text-gradient-base {
+  background: linear-gradient(135deg, var(--base-blue-light) 0%, var(--base-blue) 50%, var(--base-blue-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

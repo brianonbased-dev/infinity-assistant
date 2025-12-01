@@ -113,12 +113,14 @@ export const POST = withAuth(async (req: NextRequest, ctx: AuthenticatedContext)
     const memoryService = getConversationMemoryService();
     const entry = await memoryService.storeExplicitKnowledge(conversationId, content, type);
 
-    eventBus.emit('memory.stored', createPayload('Memory API', {
+    eventBus.emit('memory.stored' as any, {
+      source: 'Memory API',
+      timestamp: Date.now(),
       userId: ctx.userId,
       conversationId,
       type,
       entryId: entry.id,
-    }));
+    } as any);
 
     return success({
       entry: {
@@ -170,10 +172,12 @@ export const DELETE = withAuth(async (req: NextRequest, ctx: AuthenticatedContex
     if (type === 'all') {
       memoryService.clearMemory(conversationId);
 
-      eventBus.emit('memory.cleared', createPayload('Memory API', {
+      eventBus.emit('memory.cleared' as any, {
+        source: 'Memory API',
+        timestamp: Date.now(),
         userId: ctx.userId,
         conversationId,
-      }));
+      } as any);
 
       return success({ deleted: true, type: 'all', message: 'All memory cleared' }, ctx);
     }

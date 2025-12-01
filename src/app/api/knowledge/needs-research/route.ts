@@ -41,16 +41,17 @@ export async function POST(request: NextRequest) {
       urgency: assessment.urgency,
     });
 
+    const result = assessment as any;
     return NextResponse.json({
       success: true,
       assessment: {
-        topic: assessment.topic,
-        needsResearch: assessment.needsResearch,
-        confidenceInExisting: assessment.confidenceInExisting,
-        gaps: assessment.gaps || [],
-        suggestedQuestions: assessment.suggestedQuestions || [],
-        urgency: assessment.urgency,
-        reasoning: assessment.reasoning,
+        topic: result.topic,
+        needsResearch: result.needsResearch,
+        confidenceInExisting: result.confidenceInExisting,
+        gaps: result.gaps || [],
+        suggestedQuestions: result.suggestedQuestions || [],
+        urgency: result.urgency,
+        reasoning: result.reasoning,
       },
     });
   } catch (error) {
