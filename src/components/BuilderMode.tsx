@@ -26,6 +26,9 @@ import BuilderPhaseOverlay from './BuilderPhaseOverlay';
 import UIUXEditor, { EditorConfig } from './UIUXEditor';
 import BuilderRequirementsForm, { RequirementsFormData } from './BuilderRequirementsForm';
 import WhiteGloveOnboarding from './WhiteGloveOnboarding';
+import ExperienceLevelSelector from './ExperienceLevelSelector';
+import BuilderDreamBoard, { type DreamBoard } from './BuilderDreamBoard';
+import ConversationalOnboarding, { type ExtractedData } from './ConversationalOnboarding';
 import { useBuilderWorkspace } from '@/hooks/useBuilderWorkspace';
 import type { BuildPhase } from '@/types/builder-workspace';
 import {
@@ -38,6 +41,7 @@ import {
   ChevronRight,
   Crown,
   Wrench,
+  Brain,
 } from 'lucide-react';
 import {
   BUILDER_TEMPLATES,
@@ -52,6 +56,12 @@ import {
   type WhiteGloveUserInput,
   type WhiteGloveSession,
 } from '@/services/WhiteGloveService';
+import {
+  getBuilderOnboardingClient,
+  type ExperienceLevel,
+  type AgentConfig,
+  type WorkspaceSpecification,
+} from '@/services/BuilderOnboardingClient';
 
 interface BuilderModeProps {
   onBuildComplete?: (workspaceId: string) => void;
@@ -62,6 +72,9 @@ interface BuilderModeProps {
 
 type BuilderStage =
   | 'template-select'
+  | 'experience-level'    // Select Easy/Medium/Experienced
+  | 'conversation'        // EASY MODE: Companion conversation extracts all data
+  | 'dream-board'         // MEDIUM/EXPERIENCED: Visual project ideation
   | 'setup-choice'
   | 'requirements'
   | 'white-glove'
@@ -92,6 +105,21 @@ export default function BuilderMode({
 
   // White glove state
   const [whiteGloveSession, setWhiteGloveSession] = useState<WhiteGloveSession | null>(null);
+
+  // Experience level state (NEW)
+  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | null>(null);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [dreamBoard, setDreamBoard] = useState<DreamBoard | null>(null);
+  const [workspaceSpec, setWorkspaceSpec] = useState<WorkspaceSpecification | null>(null);
+  const [conversationData, setConversationData] = useState<ExtractedData | null>(null);
+  const [detectedLevel, setDetectedLevel] = useState<{
+    level: ExperienceLevel;
+    confidence: number;
+    reasons: string[];
+  } | null>(null);
+
+  // API client
+  const builderClient = getBuilderOnboardingClient();
 
   const {
     workspace,
@@ -129,11 +157,167 @@ export default function BuilderMode({
     }
   }, [workspace?.status, stage]);
 
-  // Handle template selection
-  const handleSelectTemplate = useCallback((template: BuilderTemplate) => {
+  // Handle template selection - now goes to experience level selection first
+  const handleSelectTemplate = useCallback(async (template: BuilderTemplate) => {
     setSelectedTemplate(template);
     setProjectName(template.name.toLowerCase().replace(/\s+/g, '-'));
-    setStage('setup-choice');
+
+    // Try to detect experience level from user profile
+    try {
+      const detected = await builderClient.detectExperienceLevel('current-user', {
+        // In production, pass actual user profile data
+      });
+      setDetectedLevel({
+        level: detected.level,
+        confidence: detected.confidence,
+        reasons: detected.reasons,
+      });
+    } catch {
+      // Detection failed, that's ok - user will choose manually
+    }
+
+    setStage('experience-level');
+  }, [builderClient]);
+
+  // Handle experience level selection
+  // EASY → Conversational (companion relationship)
+  // MEDIUM/EXPERIENCED → Dream Board (more freedom)
+  const handleExperienceLevelSelect = useCallback((level: ExperienceLevel, config: AgentConfig) => {
+    setExperienceLevel(level);
+    setAgentConfig(config);
+
+    if (level === 'easy') {
+      // Easy mode: Companion conversation - assistant builds relationship while extracting data
+      setStage('conversation');
+    } else {
+      // Medium/Experienced: Dream board for quick visual ideation
+      setStage('dream-board');
+    }
+  }, []);
+
+  // Handle conversation completion (Easy mode)
+  const handleConversationComplete = useCallback(async (data: ExtractedData) => {
+    if (!selectedTemplate || !experienceLevel) return;
+
+    setIsSubmitting(true);
+    setConversationData(data);
+
+    try {
+      // Convert conversation data to answers format for API
+      const answers: Record<string, string | string[]> = {
+        projectName: data.projectName || selectedTemplate.name.toLowerCase().replace(/\s+/g, '-'),
+        tagline: data.tagline || '',
+        vision: data.vision ? [data.vision] : [],
+        features: data.features,
+        style: data.stylePreferences,
+        integrations: data.integrations,
+        users: data.targetAudience ? [data.targetAudience] : [],
+        constraints: [],
+        mustHaves: data.features, // All features from Easy mode are must-haves
+        niceToHaves: [],
+        authMethod: data.authMethod || 'magic-link',
+        additionalNotes: data.additionalNotes,
+      };
+
+      // Generate specification from conversation data
+      const result = await builderClient.generateSpecification(
+        selectedTemplate.id,
+        experienceLevel,
+        answers
+      );
+
+      setWorkspaceSpec(result.specification);
+
+      // Easy mode: Start building immediately - companion handles everything
+      setProjectName(result.specification.projectName);
+      setStage('growing');
+
+      const buildDescription = `Building ${result.specification.projectName}: ${result.specification.projectDescription}`;
+      await startBuild(
+        result.specification.projectName,
+        buildDescription,
+        result.specification.projectDescription
+      );
+    } catch (error) {
+      console.error('Failed to generate specification:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedTemplate, experienceLevel, builderClient, startBuild]);
+
+  // Handle back from conversation to experience level
+  const handleBackFromConversation = useCallback(() => {
+    setStage('experience-level');
+    setConversationData(null);
+  }, []);
+
+  // Handle dream board completion - generates specification
+  const handleDreamBoardComplete = useCallback(async (board: DreamBoard) => {
+    if (!selectedTemplate || !experienceLevel) return;
+
+    setIsSubmitting(true);
+    setDreamBoard(board);
+
+    try {
+      // Convert dream board to answers format for API
+      const answers: Record<string, string | string[]> = {
+        projectName: board.projectName,
+        tagline: board.tagline,
+        vision: board.items.filter(i => i.category === 'vision').map(i => i.content),
+        features: board.items.filter(i => i.category === 'feature').map(i => i.content),
+        style: board.items.filter(i => i.category === 'style').map(i => i.content),
+        integrations: board.items.filter(i => i.category === 'integration').map(i => i.content),
+        users: board.items.filter(i => i.category === 'user').map(i => i.content),
+        constraints: board.items.filter(i => i.category === 'constraint').map(i => i.content),
+        mustHaves: board.items.filter(i => i.priority === 'must-have').map(i => i.content),
+        niceToHaves: board.items.filter(i => i.priority === 'nice-to-have').map(i => i.content),
+        inspirations: board.inspirations,
+      };
+
+      // Generate specification from dream board
+      const result = await builderClient.generateSpecification(
+        selectedTemplate.id,
+        experienceLevel,
+        answers
+      );
+
+      setWorkspaceSpec(result.specification);
+
+      // For Easy mode, go straight to building
+      // For Medium/Experienced, show setup-choice for additional options
+      if (experienceLevel === 'easy') {
+        // Easy mode: Start building immediately with generated spec
+        setProjectName(result.specification.projectName);
+        setStage('growing');
+
+        const buildDescription = `Building ${result.specification.projectName}: ${result.specification.projectDescription}`;
+        await startBuild(
+          result.specification.projectName,
+          buildDescription,
+          result.specification.projectDescription
+        );
+      } else {
+        // Medium/Experienced: Allow further customization
+        setStage('setup-choice');
+      }
+    } catch (error) {
+      console.error('Failed to generate specification:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedTemplate, experienceLevel, builderClient, startBuild]);
+
+  // Handle back from experience level to template selection
+  const handleBackFromExperienceLevel = useCallback(() => {
+    setStage('template-select');
+    setSelectedTemplate(null);
+    setDetectedLevel(null);
+  }, []);
+
+  // Handle back from dream board to experience level
+  const handleBackFromDreamBoard = useCallback(() => {
+    setStage('experience-level');
+    setDreamBoard(null);
   }, []);
 
   // Handle setup mode choice
@@ -154,14 +338,23 @@ export default function BuilderMode({
     setWhiteGloveSession(null);
   }, []);
 
-  // Handle going back from setup choice to template selection
+  // Handle going back from setup choice to dream board (or template selection if no dream board)
   const handleBackToTemplates = useCallback(() => {
-    setStage('template-select');
-    setSelectedTemplate(null);
-    setSetupMode(null);
+    if (dreamBoard) {
+      // Go back to dream board if we have one
+      setStage('dream-board');
+      setSetupMode(null);
+    } else {
+      // Otherwise go back to template selection
+      setStage('template-select');
+      setSelectedTemplate(null);
+      setSetupMode(null);
+      setExperienceLevel(null);
+      setAgentConfig(null);
+    }
     setRequirementsData(null);
     setWhiteGloveSession(null);
-  }, []);
+  }, [dreamBoard]);
 
   // Handle requirements form submission - starts the build
   const handleRequirementsSubmit = useCallback(
@@ -224,8 +417,7 @@ export default function BuilderMode({
         // Start the white glove session
         const session = await whiteGloveService.startSession(
           'current-user', // In production, get from auth context
-          selectedTemplate,
-          input
+          selectedTemplate
         );
 
         setWhiteGloveSession(session);
@@ -268,6 +460,12 @@ export default function BuilderMode({
     setSetupMode(null);
     setRequirementsData(null);
     setWhiteGloveSession(null);
+    setExperienceLevel(null);
+    setAgentConfig(null);
+    setDreamBoard(null);
+    setWorkspaceSpec(null);
+    setDetectedLevel(null);
+    setConversationData(null);
     reset();
     onCancel?.();
   }, [cancelBuild, reset, onCancel]);
@@ -299,13 +497,15 @@ export default function BuilderMode({
     }
   }, [workspace, onBuildComplete]);
 
-  // Convert workspace files to overlay format
-  const overlayFiles = workspaceFiles.map((f) => ({
-    name: f.name,
-    type: f.type,
-    path: f.path,
-    status: f.status,
-  }));
+  // Convert workspace files to overlay format (filter out deleted, cast status)
+  const overlayFiles = workspaceFiles
+    .filter((f) => f.status !== 'deleted')
+    .map((f) => ({
+      name: f.name,
+      type: f.type,
+      path: f.path,
+      status: f.status as 'created' | 'pending' | 'modified',
+    }));
 
   return (
     <div className="flex flex-col h-full">
@@ -503,6 +703,71 @@ export default function BuilderMode({
         </div>
       )}
 
+      {/* Experience Level Selection Stage */}
+      {stage === 'experience-level' && selectedTemplate && (
+        <ExperienceLevelSelector
+          selectedLevel={experienceLevel}
+          onSelect={handleExperienceLevelSelect}
+          onBack={handleBackFromExperienceLevel}
+          detectedLevel={detectedLevel?.level}
+          detectedConfidence={detectedLevel?.confidence}
+          detectedReasons={detectedLevel?.reasons}
+          templateName={selectedTemplate.name}
+        />
+      )}
+
+      {/* Conversational Onboarding Stage - EASY MODE (Companion) */}
+      {stage === 'conversation' && selectedTemplate && agentConfig && (
+        <ConversationalOnboarding
+          template={{
+            id: selectedTemplate.id,
+            name: selectedTemplate.name,
+            description: selectedTemplate.description,
+            category: selectedTemplate.category,
+            difficulty: selectedTemplate.difficulty,
+            estimatedTokens: selectedTemplate.estimatedTokens,
+            estimatedBuildTime: selectedTemplate.estimatedBuildTime || '10-20 min',
+            techStack: {
+              frontend: selectedTemplate.techStack?.frontend || [],
+              backend: selectedTemplate.techStack?.backend || [],
+              database: selectedTemplate.techStack?.database || [],
+              hosting: selectedTemplate.techStack?.hosting || [],
+              integrations: selectedTemplate.techStack?.integrations || [],
+            },
+          }}
+          agentConfig={agentConfig}
+          onComplete={handleConversationComplete}
+          onBack={handleBackFromConversation}
+        />
+      )}
+
+      {/* Dream Board Stage - MEDIUM/EXPERIENCED (Visual ideation) */}
+      {stage === 'dream-board' && selectedTemplate && experienceLevel && agentConfig && (
+        <BuilderDreamBoard
+          template={{
+            id: selectedTemplate.id,
+            name: selectedTemplate.name,
+            description: selectedTemplate.description,
+            category: selectedTemplate.category,
+            difficulty: selectedTemplate.difficulty,
+            estimatedTokens: selectedTemplate.estimatedTokens,
+            estimatedBuildTime: selectedTemplate.estimatedBuildTime || '10-20 min',
+            techStack: {
+              frontend: selectedTemplate.techStack?.frontend || [],
+              backend: selectedTemplate.techStack?.backend || [],
+              database: selectedTemplate.techStack?.database || [],
+              hosting: selectedTemplate.techStack?.hosting || [],
+              integrations: selectedTemplate.techStack?.integrations || [],
+            },
+          }}
+          experienceLevel={experienceLevel}
+          agentConfig={agentConfig}
+          onComplete={handleDreamBoardComplete}
+          onBack={handleBackFromDreamBoard}
+          isProcessing={isSubmitting}
+        />
+      )}
+
       {/* Setup Choice Stage - Choose between Self-Service and White Glove */}
       {stage === 'setup-choice' && selectedTemplate && (
         <div className="flex-1 flex flex-col items-center justify-center p-8">
@@ -650,6 +915,12 @@ export default function BuilderMode({
                 setEditorConfig(null);
                 setRequirementsData(null);
                 setWhiteGloveSession(null);
+                setExperienceLevel(null);
+                setAgentConfig(null);
+                setDreamBoard(null);
+                setWorkspaceSpec(null);
+                setDetectedLevel(null);
+                setConversationData(null);
                 reset();
               }}
               className="mt-4 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors"
