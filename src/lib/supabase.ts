@@ -55,6 +55,10 @@ export const TABLES = {
   USER_MESH_NODES: 'user_mesh_nodes',
   MESH_CONNECTIONS: 'mesh_connections',
   MESH_EVENTS: 'mesh_events',
+  // User vault tables
+  USER_VAULT_CONFIG: 'user_vault_config',
+  USER_VAULT_SECRETS: 'user_vault_secrets',
+  USER_VAULT_AUDIT: 'user_vault_audit',
 } as const;
 
 /**
