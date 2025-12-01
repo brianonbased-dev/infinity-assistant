@@ -26,6 +26,12 @@ function InfinityAssistantContent() {
   const [showSettings, setShowSettings] = useState(false);
   const [userId, setUserId] = useState<string>('');
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [userTier, setUserTier] = useState<'free' | 'pro' | 'business' | 'enterprise'>('free');
+
+  // Handle upgrade button click - navigate to pricing page
+  const handleUpgradeClick = () => {
+    router.push('/pricing');
+  };
 
   // Use local-first preferences
   const {
@@ -48,6 +54,24 @@ function InfinityAssistantContent() {
       setUserPreferences(localPreferences);
     }
   }, [localPreferences]);
+
+  // Check user tier from auth session
+  useEffect(() => {
+    const checkUserTier = async () => {
+      try {
+        const response = await fetch('/api/auth/email');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated && data.user?.tier) {
+            setUserTier(data.user.tier);
+          }
+        }
+      } catch (error) {
+        // Ignore - user is not logged in or tier check failed
+      }
+    };
+    checkUserTier();
+  }, []);
 
   // Get or create user ID
   useEffect(() => {
@@ -226,6 +250,8 @@ function InfinityAssistantContent() {
           <UnifiedSearchBar
             initialMode={userPreferences?.preferredMode || 'assist'}
             userPreferences={userPreferences}
+            userTier={userTier}
+            onUpgradeClick={handleUpgradeClick}
           />
         </div>
 
