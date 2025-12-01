@@ -1,30 +1,19 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-// Public routes that don't require authentication
-const isPublicRoute = createRouteMatcher([
-  '/',
-  '/pricing',
-  '/sign-in(.*)',
-  '/sign-up(.*)',
-  '/api/health',
-  '/api/beta/(.*)',
-]);
-
-export default clerkMiddleware(async (auth, request) => {
-  // Allow public routes without auth
-  if (isPublicRoute(request)) {
-    return;
-  }
-
-  // Protect all other routes - require sign in
-  await auth.protect();
-});
+/**
+ * Simplified middleware - no Clerk auth
+ * Uses database email auth instead
+ */
+export function middleware(request: NextRequest) {
+  // Allow all routes - auth is handled by individual API routes
+  // and the EmailAuth component on the client
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
     // Skip Next.js internals and static files
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    '/((?!_next|[^?]*\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
   ],
 };
