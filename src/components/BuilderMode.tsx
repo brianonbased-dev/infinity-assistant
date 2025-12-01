@@ -21,7 +21,8 @@
  * autonomously.
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import BuilderPhaseOverlay from './BuilderPhaseOverlay';
 import UIUXEditor, { EditorConfig } from './UIUXEditor';
 import BuilderRequirementsForm, { RequirementsFormData } from './BuilderRequirementsForm';
@@ -42,6 +43,8 @@ import {
   Crown,
   Wrench,
   Brain,
+  LayoutDashboard,
+  ExternalLink,
 } from 'lucide-react';
 import {
   BUILDER_TEMPLATES,
@@ -89,6 +92,8 @@ export default function BuilderMode({
   onCancel,
   userTokenBalance = 1000, // Default for development
 }: BuilderModeProps) {
+  const router = useRouter();
+
   // Template selection state
   const [selectedTemplate, setSelectedTemplate] = useState<BuilderTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,6 +107,31 @@ export default function BuilderMode({
   const [editorConfig, setEditorConfig] = useState<EditorConfig | null>(null);
   const [requirementsData, setRequirementsData] = useState<RequirementsFormData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Stage transition animation state
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [stageVisible, setStageVisible] = useState(true);
+  const pendingStageRef = useRef<BuilderStage | null>(null);
+
+  // Smooth stage transition helper
+  const transitionToStage = useCallback((newStage: BuilderStage) => {
+    if (newStage === stage) return;
+
+    pendingStageRef.current = newStage;
+    setStageVisible(false);
+    setIsTransitioning(true);
+
+    // Wait for fade out, then switch stage
+    setTimeout(() => {
+      setStage(newStage);
+      // Wait a frame then fade in
+      requestAnimationFrame(() => {
+        setStageVisible(true);
+        setIsTransitioning(false);
+        pendingStageRef.current = null;
+      });
+    }, 200);
+  }, [stage]);
 
   // White glove state
   const [whiteGloveSession, setWhiteGloveSession] = useState<WhiteGloveSession | null>(null);
@@ -507,10 +537,16 @@ export default function BuilderMode({
       status: f.status as 'created' | 'pending' | 'modified',
     }));
 
+  // Transition class helper
+  const transitionClasses = `transition-all duration-300 ease-out ${
+    stageVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+  }`;
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Template Selection Stage */}
       {stage === 'template-select' && (
+        <div className={transitionClasses}>
         <div className="flex-1 flex flex-col p-6 overflow-hidden">
           {/* Header */}
           <div className="text-center mb-6">
@@ -701,6 +737,7 @@ export default function BuilderMode({
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* Experience Level Selection Stage */}
@@ -883,8 +920,8 @@ export default function BuilderMode({
       {/* Completion Message */}
       {stage === 'complete' && (
         <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-green-500 to-emerald-600 mb-4">
+          <div className="text-center space-y-4 animate-fade-in">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 mb-4 animate-scale-in">
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-white">
@@ -905,28 +942,62 @@ export default function BuilderMode({
                 White Glove Service
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setStage('template-select');
-                setSelectedTemplate(null);
-                setSetupMode(null);
-                setProjectName('');
-                setEditorConfig(null);
-                setRequirementsData(null);
-                setWhiteGloveSession(null);
-                setExperienceLevel(null);
-                setAgentConfig(null);
-                setDreamBoard(null);
-                setWorkspaceSpec(null);
-                setDetectedLevel(null);
-                setConversationData(null);
-                reset();
-              }}
-              className="mt-4 px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors"
-            >
-              Start Another Build
-            </button>
+
+            {/* Developer Mode: Show dashboard option */}
+            {experienceLevel === 'experienced' && workspace && (
+              <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-fade-in-up">
+                <p className="text-sm text-purple-300 mb-3">
+                  As a Developer Mode user, you have access to advanced tools and API documentation.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/dashboard?workspace=${workspace.id}`)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl transition-all shadow-lg hover:shadow-purple-500/25"
+                >
+                  <LayoutDashboard className="w-5 h-5" />
+                  Open Developer Dashboard
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+              {/* View Dashboard - Available to all levels */}
+              <button
+                type="button"
+                onClick={() => router.push(`/dashboard${workspace ? `?workspace=${workspace.id}` : ''}`)}
+                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                View Dashboard
+              </button>
+
+              {/* Start Another Build */}
+              <button
+                type="button"
+                onClick={() => {
+                  setStage('template-select');
+                  setSelectedTemplate(null);
+                  setSetupMode(null);
+                  setProjectName('');
+                  setEditorConfig(null);
+                  setRequirementsData(null);
+                  setWhiteGloveSession(null);
+                  setExperienceLevel(null);
+                  setAgentConfig(null);
+                  setDreamBoard(null);
+                  setWorkspaceSpec(null);
+                  setDetectedLevel(null);
+                  setConversationData(null);
+                  reset();
+                }}
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-colors flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Start Another Build
+              </button>
+            </div>
           </div>
         </div>
       )}

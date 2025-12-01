@@ -32,6 +32,7 @@ import type {
   ConversationTopic,
   ConversationMessage,
   ConversationResolution,
+  ActionSuggestion,
   TimelineEvent,
   TimelineEventType,
   BuildMetrics,
@@ -881,17 +882,17 @@ class BuildProgressServiceImpl {
     role: Exclude<ConversationRole, 'user'>,
     conversation: BuildConversation
   ): ConversationMessage['suggestions'] {
-    const baseSuggestions = [
-      { id: '1', action: 'approve' as const, label: 'Approve', impact: 'medium' as const, automated: true },
-      { id: '2', action: 'modify' as const, label: 'Request Changes', impact: 'medium' as const, automated: false },
+    const baseSuggestions: ActionSuggestion[] = [
+      { id: '1', action: 'approve', label: 'Approve', impact: 'medium', automated: true },
+      { id: '2', action: 'modify', label: 'Request Changes', impact: 'medium', automated: false },
     ];
 
     if (role !== 'futurist') {
       baseSuggestions.push({
         id: '3',
-        action: 'escalate' as const,
+        action: 'escalate',
         label: `Escalate to ${role === 'assistant' ? 'CEO' : 'Futurist'}`,
-        impact: 'low' as const,
+        impact: 'low',
         automated: true,
       });
     }
@@ -899,9 +900,9 @@ class BuildProgressServiceImpl {
     if (conversation.checkpointId) {
       baseSuggestions.push({
         id: '4',
-        action: 'revert' as const,
+        action: 'revert',
         label: 'Revert to Checkpoint',
-        impact: 'high' as const,
+        impact: 'high',
         automated: true,
       });
     }

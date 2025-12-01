@@ -16,7 +16,7 @@
  * For developer-focused onboarding (search/assist/build), see BuilderOnboarding.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -88,6 +88,18 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
   const [customInterestInput, setCustomInterestInput] = useState('');
+
+  // Animation states
+  const [stepVisible, setStepVisible] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
+
+  // Reset visibility when step changes
+  useEffect(() => {
+    if (!isTransitioning) {
+      setStepVisible(true);
+    }
+  }, [currentStep, isTransitioning]);
 
   // Preferences state
   const [preferences, setPreferences] = useState<CompanionPreferences>({
@@ -755,14 +767,28 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
   ];
 
   const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+    if (currentStep < steps.length - 1 && !isTransitioning) {
+      setDirection('forward');
+      setIsTransitioning(true);
+      setStepVisible(false);
+
+      setTimeout(() => {
+        setCurrentStep(prev => prev + 1);
+        setIsTransitioning(false);
+      }, 200);
     }
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    if (currentStep > 0 && !isTransitioning) {
+      setDirection('backward');
+      setIsTransitioning(true);
+      setStepVisible(false);
+
+      setTimeout(() => {
+        setCurrentStep(prev => prev - 1);
+        setIsTransitioning(false);
+      }, 200);
     }
   };
 
@@ -836,8 +862,18 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
             </div>
           </div>
 
-          {/* Step content */}
-          <div className="min-h-[400px]">{currentStepData.component}</div>
+          {/* Step content with transition */}
+          <div
+            className={`min-h-[400px] transition-all duration-300 ease-out ${
+              stepVisible
+                ? 'opacity-100 translate-x-0'
+                : direction === 'forward'
+                  ? 'opacity-0 -translate-x-4'
+                  : 'opacity-0 translate-x-4'
+            }`}
+          >
+            {currentStepData.component}
+          </div>
 
           {/* Navigation */}
           <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-800">

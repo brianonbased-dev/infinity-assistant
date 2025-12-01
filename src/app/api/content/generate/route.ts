@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserContentStorageService } from '@/services/UserContentStorageService';
 import { getUserService } from '@/services/UserService';
+import { getUnifiedLLMClient } from '@/lib/llm/UnifiedLLMClient';
 import logger from '@/utils/logger';
 
 // ============================================================================
@@ -40,6 +41,8 @@ interface GenerationResult {
     url: string;
   };
   preview?: string;
+  tokensUsed?: number;
+  aiPowered?: boolean;
   error?: string;
 }
 
@@ -67,39 +70,14 @@ const DOCUMENT_TEMPLATES = {
 // ============================================================================
 
 /**
- * Generate a document based on prompt
- * In production, this would call Claude or another LLM
+ * Generate a document based on prompt using AI
  */
 async function generateDocument(
   prompt: string,
   options: GenerationRequest['options']
-): Promise<{ content: string; mimeType: string; extension: string }> {
+): Promise<{ content: string; mimeType: string; extension: string; tokensUsed: number }> {
   const format = options?.format || 'markdown';
   const template = DOCUMENT_TEMPLATES[options?.style as keyof typeof DOCUMENT_TEMPLATES] || DOCUMENT_TEMPLATES.document;
-
-  // Generate content structure based on prompt
-  // This is a placeholder - in production, call an LLM
-  const generatedContent = `
-## ${options?.title || 'Generated Document'}
-
-${prompt}
-
-### Content
-
-This document was generated based on your request. The full generation capabilities
-would integrate with Claude API for intelligent content creation.
-
-### Details
-
-- Request: ${prompt}
-- Format: ${format}
-- Style: ${options?.style || 'default'}
-- Generated: ${new Date().toISOString()}
-`.trim();
-
-  const content = template.prefix.replace('{{date}}', new Date().toLocaleDateString()) +
-                  generatedContent +
-                  template.suffix;
 
   const mimeTypes: Record<string, string> = {
     markdown: 'text/markdown',
@@ -117,66 +95,239 @@ would integrate with Claude API for intelligent content creation.
     html: 'html',
   };
 
+  try {
+    // Use the Unified LLM Client for AI-powered content generation
+    const llmClient = getUnifiedLLMClient();
+    const isAvailable = await llmClient.healthCheck();
+
+    if (isAvailable) {
+      const result = await llmClient.generateContent('document', prompt, {
+        format: format,
+        style: options?.style,
+        length: options?.length,
+      });
+
+      const generatedContent = result.content;
+      const content = template.prefix.replace('{{date}}', new Date().toLocaleDateString()) +
+                      (options?.title ? `# ${options.title}\n\n` : '') +
+                      generatedContent +
+                      template.suffix;
+
+      logger.info('[Content Generate] AI-powered document generated', {
+        tokensUsed: result.tokensUsed,
+        format,
+      });
+
+      return {
+        content,
+        mimeType: mimeTypes[format] || 'text/plain',
+        extension: extensions[format] || 'txt',
+        tokensUsed: result.tokensUsed,
+      };
+    }
+
+    // Fallback to template if LLM unavailable
+    logger.warn('[Content Generate] LLM unavailable, using template fallback');
+    return generateDocumentFallback(prompt, options, template, format, mimeTypes, extensions);
+
+  } catch (error) {
+    logger.error('[Content Generate] LLM error, using fallback:', error);
+    return generateDocumentFallback(prompt, options, template, format, mimeTypes, extensions);
+  }
+}
+
+/**
+ * Fallback document generation when LLM is unavailable
+ */
+function generateDocumentFallback(
+  prompt: string,
+  options: GenerationRequest['options'],
+  template: { prefix: string; suffix: string },
+  format: string,
+  mimeTypes: Record<string, string>,
+  extensions: Record<string, string>
+): { content: string; mimeType: string; extension: string; tokensUsed: number } {
+  const generatedContent = `
+## ${options?.title || 'Generated Document'}
+
+${prompt}
+
+### Content
+
+This document was generated based on your request. The AI content generation service
+is currently unavailable. Please try again later for AI-powered content.
+
+### Details
+
+- Request: ${prompt}
+- Format: ${format}
+- Style: ${options?.style || 'default'}
+- Generated: ${new Date().toISOString()}
+`.trim();
+
+  const content = template.prefix.replace('{{date}}', new Date().toLocaleDateString()) +
+                  generatedContent +
+                  template.suffix;
+
   return {
     content,
     mimeType: mimeTypes[format] || 'text/plain',
     extension: extensions[format] || 'txt',
+    tokensUsed: 0,
   };
 }
 
 /**
- * Generate code based on prompt
+ * Generate code based on prompt using AI
  */
 async function generateCode(
   prompt: string,
   options: GenerationRequest['options']
-): Promise<{ content: string; mimeType: string; extension: string }> {
-  // Placeholder for code generation
+): Promise<{ content: string; mimeType: string; extension: string; tokensUsed: number }> {
+  try {
+    const llmClient = getUnifiedLLMClient();
+    const isAvailable = await llmClient.healthCheck();
+
+    if (isAvailable) {
+      const result = await llmClient.generateCode({
+        intent: prompt,
+        language: 'typescript',
+        framework: undefined,
+        context: options?.style === 'technical' ? 'Production-ready, well-documented code' : undefined,
+      });
+
+      if (result.success) {
+        logger.info('[Content Generate] AI-powered code generated', {
+          tokensUsed: result.metadata.tokensUsed,
+          provider: result.metadata.provider,
+        });
+
+        return {
+          content: result.code,
+          mimeType: 'text/typescript',
+          extension: 'ts',
+          tokensUsed: result.metadata.tokensUsed,
+        };
+      }
+    }
+
+    // Fallback
+    logger.warn('[Content Generate] LLM unavailable for code, using fallback');
+    return generateCodeFallback(prompt);
+
+  } catch (error) {
+    logger.error('[Content Generate] Code generation error:', error);
+    return generateCodeFallback(prompt);
+  }
+}
+
+/**
+ * Fallback code generation when LLM is unavailable
+ */
+function generateCodeFallback(
+  prompt: string
+): { content: string; mimeType: string; extension: string; tokensUsed: number } {
   const code = `/**
  * Generated Code
  *
  * Request: ${prompt}
  * Generated: ${new Date().toISOString()}
+ *
+ * Note: AI code generation is currently unavailable.
+ * This is a template - please implement the actual logic.
  */
 
-// This is a placeholder for the generated code.
-// Full implementation would integrate with Claude API.
-
+// TODO: Implement based on: ${prompt}
 export function generatedFunction() {
-  // TODO: Implement based on prompt
-  console.log('Generated by Infinity Assistant');
+  console.log('Implementation pending - Generated by Infinity Assistant');
 }
+
+export default generatedFunction;
 `;
 
   return {
     content: code,
     mimeType: 'text/typescript',
     extension: 'ts',
+    tokensUsed: 0,
   };
 }
 
 /**
- * Generate data export
+ * Generate data export using AI
  */
 async function generateData(
   prompt: string,
   options: GenerationRequest['options']
-): Promise<{ content: string; mimeType: string; extension: string }> {
+): Promise<{ content: string; mimeType: string; extension: string; tokensUsed: number }> {
   const format = options?.format || 'json';
 
+  try {
+    const llmClient = getUnifiedLLMClient();
+    const isAvailable = await llmClient.healthCheck();
+
+    if (isAvailable) {
+      // Ask LLM to generate structured data
+      const dataPrompt = format === 'csv'
+        ? `Generate CSV data for: ${prompt}. Output valid CSV with headers.`
+        : `Generate JSON data for: ${prompt}. Output valid JSON only, no markdown.`;
+
+      const result = await llmClient.generateContent('data', dataPrompt, {
+        format: format,
+      });
+
+      // Try to parse and validate the output
+      let content = result.content.trim();
+
+      // Clean up any markdown code blocks
+      if (content.startsWith('```')) {
+        const match = content.match(/```(?:json|csv)?\n?([\s\S]*?)```/);
+        if (match) content = match[1].trim();
+      }
+
+      logger.info('[Content Generate] AI-powered data generated', {
+        tokensUsed: result.tokensUsed,
+        format,
+      });
+
+      return {
+        content,
+        mimeType: format === 'csv' ? 'text/csv' : 'application/json',
+        extension: format === 'csv' ? 'csv' : 'json',
+        tokensUsed: result.tokensUsed,
+      };
+    }
+
+    // Fallback
+    return generateDataFallback(prompt, format);
+
+  } catch (error) {
+    logger.error('[Content Generate] Data generation error:', error);
+    return generateDataFallback(prompt, format);
+  }
+}
+
+/**
+ * Fallback data generation when LLM is unavailable
+ */
+function generateDataFallback(
+  prompt: string,
+  format: string
+): { content: string; mimeType: string; extension: string; tokensUsed: number } {
   if (format === 'csv') {
     const csv = `id,name,description,created_at
-1,Generated Item,${prompt},${new Date().toISOString()}
+1,Generated Item,"${prompt.replace(/"/g, '""')}",${new Date().toISOString()}
 `;
-    return { content: csv, mimeType: 'text/csv', extension: 'csv' };
+    return { content: csv, mimeType: 'text/csv', extension: 'csv', tokensUsed: 0 };
   }
 
   const data = {
     generated: true,
     prompt,
     timestamp: new Date().toISOString(),
+    note: 'AI data generation is currently unavailable',
     data: {
-      message: 'This is generated data based on your request',
+      message: 'This is placeholder data based on your request',
       request: prompt,
     },
   };
@@ -185,6 +336,7 @@ async function generateData(
     content: JSON.stringify(data, null, 2),
     mimeType: 'application/json',
     extension: 'json',
+    tokensUsed: 0,
   };
 }
 
@@ -222,7 +374,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate content based on type
-    let generated: { content: string; mimeType: string; extension: string };
+    let generated: { content: string; mimeType: string; extension: string; tokensUsed: number };
 
     switch (type) {
       case 'document':
@@ -274,6 +426,8 @@ export async function POST(request: NextRequest) {
       userId,
       contentId: result.content?.id,
       type,
+      tokensUsed: generated.tokensUsed,
+      aiPowered: generated.tokensUsed > 0,
     });
 
     // Return result with preview
@@ -286,6 +440,8 @@ export async function POST(request: NextRequest) {
         url: result.signedUrl || '',
       },
       preview: generated.content.slice(0, 500), // First 500 chars as preview
+      tokensUsed: generated.tokensUsed,
+      aiPowered: generated.tokensUsed > 0,
     };
 
     return NextResponse.json(response);

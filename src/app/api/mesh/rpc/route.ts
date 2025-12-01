@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const domain = request.nextUrl.searchParams.get('domain') || undefined;
 
     // Set mesh level based on user tier
-    const level = getMeshLevelFromTier(user.subscriptionTier || 'free');
+    const level = getMeshLevelFromTier(user.plan || 'free');
     meshNodeClient.setMeshLevel(level);
 
     // Get available actions
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           level,
-          tier: user.subscriptionTier || 'free',
+          tier: user.plan || 'free',
           total: availableActions.length,
           actions: availableActions,
           hint: level === 'user'
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Set mesh level based on user tier
-    const level = getMeshLevelFromTier(user.subscriptionTier || 'free');
+    const level = getMeshLevelFromTier(user.plan || 'free');
     meshNodeClient.setMeshLevel(level);
 
     // Check for batch request
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         action: result.action,
         duration: result.duration,
         level,
-        tier: user.subscriptionTier || 'free',
+        tier: user.plan || 'free',
       },
       {
         status: result.success ? 200 : result.errorCode === 'ACCESS_DENIED' ? 403 : 400,

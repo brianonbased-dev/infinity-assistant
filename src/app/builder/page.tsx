@@ -30,27 +30,35 @@ function BuilderContent() {
     // Check if user has Builder subscription
     const checkBuilderAccess = async () => {
       try {
-        // TODO: Replace with actual subscription check
-        // For now, allow access for development
         const response = await fetch('/api/v2/subscription');
         if (response.ok) {
           const data = await response.json();
-          // Check if user has builder tier
+          // Check if user has builder tier - strict validation
+          // Valid tiers: builder_starter, builder_pro, builder_enterprise, or any tier containing 'builder'
+          // Also allow pro, team, enterprise tiers full access
+          const validBuilderTiers = [
+            'builder_starter',
+            'builder_pro',
+            'builder_enterprise',
+            'pro',
+            'team',
+            'enterprise',
+            'scale', // From PaymentBillingService
+            'growth', // From PaymentBillingService
+          ];
+
           const hasAccess =
-            data.tier?.includes('builder') ||
-            data.tier === 'builder_starter' ||
-            data.tier === 'builder_pro' ||
-            data.tier === 'builder_enterprise' ||
-            process.env.NODE_ENV === 'development'; // Allow in dev mode
+            validBuilderTiers.includes(data.tier) ||
+            data.tier?.includes('builder');
 
           setHasBuilderAccess(hasAccess);
         } else {
-          // Allow access in development
-          setHasBuilderAccess(process.env.NODE_ENV === 'development');
+          // No valid subscription response - deny access
+          setHasBuilderAccess(false);
         }
       } catch {
-        // Allow access in development
-        setHasBuilderAccess(process.env.NODE_ENV === 'development');
+        // Network error - deny access (fail secure)
+        setHasBuilderAccess(false);
       } finally {
         setCheckingSubscription(false);
       }

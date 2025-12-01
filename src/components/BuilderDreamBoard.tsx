@@ -443,22 +443,26 @@ export default function BuilderDreamBoard({
                 {/* Category content */}
                 {isExpanded && (
                   <div className="px-4 pb-4 space-y-3">
-                    {/* Existing items */}
+                    {/* Existing items with animations */}
                     {items.length > 0 && (
                       <div className="space-y-2">
-                        {items.map((item) => (
+                        {items.map((item, itemIndex) => (
                           <div
                             key={item.id}
-                            className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg group"
+                            className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg group animate-fade-in-up hover:bg-gray-800/70 transition-colors"
+                            style={{
+                              animationDelay: `${Math.min(itemIndex * 50, 200)}ms`,
+                              animationFillMode: 'backwards',
+                            }}
                           >
                             <GripVertical className="w-4 h-4 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
                             <span className="flex-1 text-sm text-gray-200">{item.content}</span>
 
-                            {/* Priority selector */}
+                            {/* Priority selector with improved styling */}
                             <select
                               value={item.priority}
                               onChange={(e) => updateItemPriority(item.id, e.target.value as DreamItem['priority'])}
-                              className={`px-2 py-1 rounded text-xs border-0 cursor-pointer ${PRIORITY_BADGES[item.priority].bgColor} ${PRIORITY_BADGES[item.priority].color}`}
+                              className={`px-2 py-1 rounded text-xs border-0 cursor-pointer transition-colors ${PRIORITY_BADGES[item.priority].bgColor} ${PRIORITY_BADGES[item.priority].color}`}
                             >
                               <option value="must-have">Must Have</option>
                               <option value="nice-to-have">Nice to Have</option>
@@ -468,7 +472,8 @@ export default function BuilderDreamBoard({
                             <button
                               type="button"
                               onClick={() => removeDreamItem(item.id)}
-                              className="p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                              title="Remove item"
+                              className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded opacity-0 group-hover:opacity-100 transition-all"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -509,7 +514,7 @@ export default function BuilderDreamBoard({
                       </button>
                     </div>
 
-                    {/* Quick suggestions */}
+                    {/* Quick suggestions with staggered animation */}
                     {experienceLevel !== 'experienced' && (
                       <div className="flex flex-wrap gap-2">
                         {config.suggestions.slice(0, experienceLevel === 'easy' ? 3 : 6).map((suggestion, idx) => (
@@ -517,7 +522,11 @@ export default function BuilderDreamBoard({
                             key={idx}
                             type="button"
                             onClick={() => addDreamItem(category, suggestion)}
-                            className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-full border border-gray-700 transition-colors"
+                            className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 hover:scale-105 text-gray-300 rounded-full border border-gray-700 transition-all duration-200 animate-fade-in"
+                            style={{
+                              animationDelay: `${idx * 50}ms`,
+                              animationFillMode: 'backwards',
+                            }}
                           >
                             + {suggestion}
                           </button>

@@ -9,9 +9,6 @@
 export {
   CacheService,
   MultiKeyCache,
-  CacheEntry,
-  CacheOptions,
-  CacheStats,
   cacheRegistry,
   getCache,
   vehicleCache,
@@ -20,8 +17,20 @@ export {
   sessionCache
 } from './CacheService';
 
+export type {
+  CacheEntry,
+  CacheOptions,
+  CacheStats
+} from './CacheService';
+
 // Event Bus - replaces fragmented event systems
 export {
+  eventBus,
+  getEventBus,
+  createPayload
+} from './EventBus';
+
+export type {
   EventType,
   EventCategory,
   EventPayloadMap,
@@ -30,9 +39,6 @@ export {
   Event,
   Subscription,
   EventBusOptions,
-  eventBus,
-  getEventBus,
-  createPayload,
   // Payload types
   BaseEventPayload,
   VehicleEventPayload,
@@ -49,8 +55,6 @@ export {
 // Service Error - standardizes error handling
 export {
   ServiceError,
-  ErrorCode,
-  ServiceErrorOptions,
   // Factory functions
   createError,
   authRequired,
@@ -83,17 +87,22 @@ export {
   withRetry
 } from './ServiceError';
 
+export type { ServiceErrorOptions, ErrorCode } from './ServiceError';
+
 // Singleton Factory - replaces 25 duplicate singleton patterns
 export {
   createSingleton,
   createAsyncSingleton,
   createConfigurableSingleton,
   createRegisteredSingleton,
-  SingletonOptions,
-  SingletonAccessor,
   singletonRegistry,
   ServiceContainer,
   serviceContainer
+} from './createSingleton';
+
+export type {
+  SingletonOptions,
+  SingletonAccessor
 } from './createSingleton';
 
 // API Middleware - standardizes route handling
@@ -102,18 +111,21 @@ export {
   withAuth,
   withPublic,
   withRateLimit,
-  ApiContext,
-  AuthenticatedContext,
-  ApiHandler,
-  RouteOptions,
-  ValidationSchema,
-  ApiResponse,
   json,
   success,
   error,
   parseBody,
   getQuery,
   getParams
+} from './apiMiddleware';
+
+export type {
+  ApiContext,
+  AuthenticatedContext,
+  ApiHandler,
+  RouteOptions,
+  ValidationSchema,
+  ApiResponse
 } from './apiMiddleware';
 
 // EV Module - disabled for initial release (Phase 2)

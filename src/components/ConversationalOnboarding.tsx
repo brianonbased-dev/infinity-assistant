@@ -762,18 +762,22 @@ export default function ConversationalOnboarding({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <div
             key={message.id}
-            className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+            className={`flex gap-3 animate-fade-in-up ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+            style={{
+              animationDelay: `${Math.min(index * 50, 200)}ms`,
+              animationFillMode: 'backwards',
+            }}
           >
-            {/* Avatar */}
+            {/* Avatar with pulse effect for latest assistant message */}
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
                 message.role === 'assistant'
-                  ? 'bg-gradient-to-br from-purple-500 to-pink-500'
+                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30'
                   : 'bg-gray-700'
-              }`}
+              } ${message.role === 'assistant' && index === messages.length - 1 ? 'ring-2 ring-purple-400/50 ring-offset-2 ring-offset-gray-900' : ''}`}
             >
               {message.role === 'assistant' ? (
                 <Bot className="w-4 h-4 text-white" />
@@ -852,17 +856,17 @@ export default function ConversationalOnboarding({
           </div>
         ))}
 
-        {/* Typing indicator */}
+        {/* Typing indicator with smooth entrance */}
         {isTyping && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+          <div className="flex gap-3 animate-fade-in">
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30 animate-pulse">
               <Bot className="w-4 h-4 text-white" />
             </div>
-            <div className="bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-md">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-2 h-2 bg-purple-400 rounded-full animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           </div>
@@ -893,6 +897,8 @@ export default function ConversationalOnboarding({
             type="button"
             onClick={handleSend}
             disabled={!inputValue.trim() || isTyping}
+            title="Send message"
+            aria-label="Send message"
             className="px-4 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors"
           >
             <Send className="w-5 h-5" />

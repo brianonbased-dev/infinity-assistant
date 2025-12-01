@@ -193,6 +193,10 @@ export interface EventPayloadMap {
   'build.completed': BuildEventPayload;
   'build.failed': BuildEventPayload;
   'build.cancelled': BuildEventPayload;
+  'build.paused': BuildEventPayload;
+  'build.resumed': BuildEventPayload;
+  'build.phase_completed': BuildEventPayload;
+  'code.generated': BuildEventPayload;
   'deployment.started': DeploymentEventPayload;
   'deployment.progress': DeploymentEventPayload;
   'deployment.completed': DeploymentEventPayload;
@@ -203,6 +207,13 @@ export interface EventPayloadMap {
   'user.logout': UserEventPayload;
   'user.updated': UserEventPayload;
   'user.deleted': UserEventPayload;
+  'content.created': UserEventPayload;
+  'content.deleted': UserEventPayload;
+  'memory.stored': UserEventPayload;
+  'memory.cleared': UserEventPayload;
+  'subscription.changed': BillingEventPayload;
+  'subscription.canceled': BillingEventPayload;
+  'subscription.reactivated': BillingEventPayload;
   'billing.subscription_created': BillingEventPayload;
   'billing.subscription_updated': BillingEventPayload;
   'billing.subscription_cancelled': BillingEventPayload;
@@ -313,7 +324,7 @@ class EventBusImpl {
    * Subscribe to all events
    */
   onAny(handler: WildcardHandler): () => void {
-    return this.addSubscription('*', handler as EventHandler<EventType>, {
+    return this.addSubscription('*', handler as unknown as EventHandler<EventType>, {
       once: false,
       priority: 0
     });

@@ -312,7 +312,7 @@ export class BMWIntegrationService {
 
   async getVehicles(accessToken: string): Promise<BMWVehicle[]> {
     const response = await this.apiRequest(accessToken, '/eadrax-vcs/v4/vehicles');
-    return response || [];
+    return (response as unknown as BMWVehicle[]) || [];
   }
 
   async getVehicleState(accessToken: string, vin: string): Promise<BMWVehicleState> {
@@ -320,8 +320,9 @@ export class BMWIntegrationService {
     if (cached) return cached;
 
     const response = await this.apiRequest(accessToken, `/eadrax-vcs/v4/vehicles/${vin}/state`);
-    this.setCache(this.stateCache, vin, response as BMWVehicleState);
-    return response as BMWVehicleState;
+    const state = response as unknown as BMWVehicleState;
+    this.setCache(this.stateCache, vin, state);
+    return state;
   }
 
   async getChargingSessions(accessToken: string, vin: string): Promise<BMWChargingSession[]> {
@@ -329,7 +330,8 @@ export class BMWIntegrationService {
       accessToken,
       `/eadrax-chs/v1/charging-sessions?vin=${vin}`
     );
-    return response.sessions || [];
+    const data = response as { sessions?: BMWChargingSession[] };
+    return data.sessions || [];
   }
 
   async refreshVehicleData(accessToken: string, vin: string): Promise<BMWCommandResponse> {

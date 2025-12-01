@@ -8,7 +8,8 @@
  */
 
 import React from 'react';
-import { PricingPage as PricingPageComponent, type PricingTier } from '@/components/PricingPage';
+import { PricingPage as PricingPageComponent } from '@/components/PricingPage';
+import { type PricingTier } from '@/components/PaymentModeToggle';
 import { UpgradeModal, type UpgradePlan } from '@/components/UpgradeModal';
 import { useState } from 'react';
 

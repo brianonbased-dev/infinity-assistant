@@ -220,7 +220,9 @@ export class BuilderWorkspaceService {
 
     // Simulate progress updates
     for (let progress = 0; progress <= 100; progress += 10) {
-      if (workspace.status === 'cancelled') return;
+      // Re-check workspace status (could have been cancelled during async delay)
+      const currentWorkspace = this.workspaces.get(workspaceId);
+      if (!currentWorkspace || currentWorkspace.status === 'cancelled') return;
 
       phaseInfo.progress = progress;
       phaseInfo.message = phaseConfig.messages[Math.floor(progress / 25)] || phaseConfig.messages[0];

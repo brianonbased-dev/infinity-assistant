@@ -8,6 +8,68 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { cryptoPaymentService, type CryptoToken } from '@/services/CryptoPaymentService';
+import { getSupabaseClient, TABLES } from '@/lib/supabase';
+
+// ============================================================================
+// Plan Mapping - Map planId to subscription tier
+// ============================================================================
+
+const PLAN_TO_TIER: Record<string, string> = {
+  'builder_starter': 'builder_starter',
+  'builder_pro': 'builder_pro',
+  'builder_enterprise': 'builder_enterprise',
+  'pro': 'pro',
+  'team': 'team',
+  'enterprise': 'enterprise',
+};
+
+/**
+ * Activate subscription after successful crypto payment
+ */
+async function activateSubscription(
+  userId: string,
+  planId: string,
+  verification: { txHash: string; amount: number; token: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = getSupabaseClient();
+    const tier = PLAN_TO_TIER[planId] || 'pro';
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1); // 1 month subscription
+
+    // Upsert subscription record
+    const { error: dbError } = await supabase
+      .from(TABLES.SUBSCRIPTIONS)
+      .upsert({
+        user_id: userId,
+        tier,
+        status: 'active',
+        payment_method: 'crypto',
+        crypto_tx_hash: verification.txHash,
+        crypto_token: verification.token,
+        crypto_amount: verification.amount,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        cancel_at_period_end: false,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      }, {
+        onConflict: 'user_id',
+      });
+
+    if (dbError) {
+      console.error('[Crypto Payment] DB Error:', dbError);
+      return { success: false, error: dbError.message };
+    }
+
+    console.log('[Crypto Payment] Subscription activated:', { userId, tier, txHash: verification.txHash });
+    return { success: true };
+  } catch (err) {
+    console.error('[Crypto Payment] Activation error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
 
 // ============================================================================
 // POST - Initiate payment / Get payment instructions
@@ -83,13 +145,30 @@ export async function POST(request: NextRequest) {
         }
 
         if (verification.verified) {
-          // TODO: Activate subscription in database
-          // await activateSubscription(userId, planId, verification);
+          // Activate subscription in database
+          const activation = await activateSubscription(userId, planId, {
+            txHash: txHash,
+            amount: parseFloat(amount),
+            token: token,
+          });
+
+          if (!activation.success) {
+            return NextResponse.json({
+              success: false,
+              error: `Payment verified but subscription activation failed: ${activation.error}`,
+              verification,
+            }, { status: 500 });
+          }
 
           return NextResponse.json({
             success: true,
             verification,
-            message: 'Payment verified successfully',
+            subscription: {
+              activated: true,
+              tier: PLAN_TO_TIER[planId] || 'pro',
+              planId,
+            },
+            message: 'Payment verified and subscription activated successfully',
           });
         }
 
@@ -108,7 +187,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Simulate payment (for testing)
+    // Simulate payment (for testing) - also activates subscription
     if (action === 'simulate') {
       if (!token || !amount || !walletAddress) {
         return NextResponse.json(
@@ -122,6 +201,28 @@ export async function POST(request: NextRequest) {
         parseFloat(amount),
         walletAddress
       );
+
+      // Also activate subscription in test mode if planId provided
+      if (planId && verification.verified) {
+        const activation = await activateSubscription(userId, planId, {
+          txHash: verification.txHash,
+          amount: parseFloat(amount),
+          token: token,
+        });
+
+        return NextResponse.json({
+          success: true,
+          verification,
+          subscription: activation.success ? {
+            activated: true,
+            tier: PLAN_TO_TIER[planId] || 'pro',
+            planId,
+          } : undefined,
+          message: activation.success
+            ? 'Payment simulated and subscription activated (test mode)'
+            : 'Payment simulated but subscription activation failed (test mode)',
+        });
+      }
 
       return NextResponse.json({
         success: true,

@@ -973,7 +973,7 @@ class AdaptiveCommunicationService {
       else if (wordLenDiff < 2) score += 0.15;
 
       // Sentence length similarity
-      const sentLenDiff = Math.abs(pf.avgSentenceLength - fingerprint.avgSentenceLength);
+      const sentLenDiff = Math.abs(pf.avgMessageLength - fingerprint.avgSentenceLength);
       if (sentLenDiff < 3) score += 0.2;
 
       // Punctuation style
@@ -1421,6 +1421,7 @@ class AdaptiveCommunicationService {
       systemPromptAdditions,
       speakerChange,
       confidence,
+      isNewSpeaker: speakerChange, // Treat speaker change as potential new speaker
     };
   }
 
@@ -1687,6 +1688,7 @@ class AdaptiveCommunicationService {
       existingProfile.messageCount++;
       existingProfile.lastSeen = new Date();
     } else {
+      const now = new Date();
       context.speakers.set(speakerId, {
         id: speakerId,
         detectedLanguage: analysis.language,
@@ -1694,8 +1696,18 @@ class AdaptiveCommunicationService {
         vocabularyLevel: 'intermediate',
         formalityLevel: 'neutral',
         messageCount: 1,
-        lastSeen: new Date(),
+        firstSeen: now,
+        lastSeen: now,
         confidence: 0.5,
+        styleFingerprint: {
+          avgWordLength: 0,
+          avgMessageLength: 0,
+          punctuationStyle: 'standard',
+          emojiUsage: 'rare',
+          signaturePatterns: [],
+        },
+        interests: [],
+        rememberedFacts: [],
       });
     }
 

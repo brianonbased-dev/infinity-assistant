@@ -4,10 +4,16 @@
  * Client for communicating with uaa2-service Builder Onboarding APIs
  * Provides quantum parallel question batching for vigorous upfront onboarding
  *
- * Experience Levels:
- * - Easy: Full autonomy, minimal questions, Infinity Assistant handles everything
- * - Medium: Balanced autonomy, strategic questions, some tool exposure
- * - Experienced: Low autonomy, full tool access, developer-centric workflow
+ * Builder Experience Levels:
+ * - Easy (Companion Builder): Ready-made UI IDE, browser automation, OAuth handling, premium tokens
+ * - Medium (Guided Builder): Step-by-step guidance, learning-focused, standard tokens
+ * - Experienced (Developer Platform): API-first, usage analytics, efficient tokens
+ *
+ * Assistant Modes (separate from Builder, always available):
+ * - Assist: Helps when asked, hands-off, responsive
+ * - Companion: White-glove orchestrator, proactive, full automation with browser tools
+ *
+ * Browser tools from uaa2-service enable cloud agents and assistant to automate browser tasks.
  *
  * @since 2025-12-01
  */
@@ -18,9 +24,17 @@ import logger from '@/utils/logger';
 // TYPE DEFINITIONS (mirrors uaa2-service types)
 // ============================================================================
 
+// Builder experience levels
 export type ExperienceLevel = 'easy' | 'medium' | 'experienced';
+
+// Assistant modes (separate from Builder)
+export type AssistantMode = 'assist' | 'companion';
+
+// Token cost tiers
+export type TokenCostTier = 'premium' | 'standard' | 'efficient';
+
 export type QuestionType = 'text' | 'select' | 'multi-select' | 'boolean' | 'number' | 'credential';
-export type QuestionCategory = 'project' | 'features' | 'integrations' | 'deployment' | 'credentials' | 'preferences';
+export type QuestionCategory = 'project' | 'features' | 'integrations' | 'deployment' | 'credentials' | 'preferences' | 'assistant';
 
 export interface QuestionOption {
   id: string;
@@ -156,6 +170,20 @@ export interface AgentConfig {
   exposedCapabilities: string[];
   hiddenCapabilities: string[];
   systemPromptAdditions: string;
+  // Browser tools configuration (from uaa2-service)
+  browserToolsEnabled?: boolean;
+  browserToolsScope?: 'full' | 'preview' | 'api_only' | 'disabled';
+  // Token cost tier for this configuration
+  tokenCostTier?: TokenCostTier;
+}
+
+export interface AssistantModeConfig {
+  mode: AssistantMode;
+  proactiveLevel: number; // 0-1
+  automationLevel: number; // 0-1
+  browserToolsEnabled: boolean;
+  explanationDepth: 'minimal' | 'standard' | 'detailed';
+  interruptionThreshold: number; // 0-1
 }
 
 export interface BuilderTemplate {
@@ -419,8 +447,53 @@ export class BuilderOnboardingClient {
           exposedCapabilities: [],
           hiddenCapabilities: [],
           systemPromptAdditions: '',
+          browserToolsEnabled: false,
+          browserToolsScope: 'preview',
+          tokenCostTier: 'standard',
         },
       };
+    }
+  }
+
+  /**
+   * Get recommended assistant mode based on builder experience level
+   */
+  getRecommendedAssistantMode(experienceLevel: ExperienceLevel): AssistantMode {
+    // Easy (Companion Builder) -> Companion mode (white-glove)
+    // Medium (Guided Builder) -> Assist mode (responsive help)
+    // Experienced (Developer Platform) -> Assist mode (hands-off)
+    return experienceLevel === 'easy' ? 'companion' : 'assist';
+  }
+
+  /**
+   * Get browser tools scope based on experience level
+   */
+  getBrowserToolsScope(experienceLevel: ExperienceLevel): 'full' | 'preview' | 'api_only' | 'disabled' {
+    switch (experienceLevel) {
+      case 'easy':
+        return 'full'; // Full browser automation for white-glove
+      case 'medium':
+        return 'preview'; // Preview-only for learning
+      case 'experienced':
+        return 'api_only'; // API access, they control their own browser
+      default:
+        return 'disabled';
+    }
+  }
+
+  /**
+   * Get token cost tier for experience level
+   */
+  getTokenCostTier(experienceLevel: ExperienceLevel): TokenCostTier {
+    switch (experienceLevel) {
+      case 'easy':
+        return 'premium'; // Most expensive, full automation
+      case 'medium':
+        return 'standard'; // Middle tier
+      case 'experienced':
+        return 'efficient'; // Lowest cost, API-only
+      default:
+        return 'standard';
     }
   }
 }

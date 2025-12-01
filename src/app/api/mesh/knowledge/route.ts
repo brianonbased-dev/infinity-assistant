@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const results = await meshNodeClient.searchKnowledge(query, { type, limit });
 
     return NextResponse.json({
-      ...results,
+      ...(results && typeof results === 'object' ? results : { data: results }),
       source: 'uaa2-service',
     });
   } catch (error) {
