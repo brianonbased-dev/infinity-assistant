@@ -8,6 +8,9 @@
 import { createSingleton } from '../createSingleton';
 import { getCache } from '../CacheService';
 import { eventBus } from '../EventBus';
+import { getUnifiedLLMClient } from '../llm/UnifiedLLMClient';
+import { packetEnhancerService, type BuildEnhancement } from '../../services/PacketEnhancerService';
+import { masterRpcClient, type KnowledgePacket } from '../../services/MasterRpcClient';
 
 // Helper to emit events without strict typing (for build orchestrator)
 const emitBuildEvent = (event: string, data: Record<string, unknown>) => {
@@ -17,12 +20,13 @@ import type {
   BuildRequest,
   BuildProgress,
   BuildPhase,
-  BuildStatus,
   PhaseProgress,
   StepProgress,
   BuildCheckpoint,
   CodeGenRequest,
   CodeGenResult,
+  CodeWarning,
+  CodeSuggestion,
   Deployment,
   BuildMetrics,
   TimelineEvent,
@@ -39,6 +43,10 @@ class BuildOrchestratorImpl {
 
   private buildCache = getCache<BuildProgress>('builds', { ttl: 3600000 }); // 1 hour
   private listeners = new Map<string, Set<(event: any) => void>>();
+
+  // Knowledge packet enhancements per session
+  private sessionEnhancements = new Map<string, BuildEnhancement>();
+  private sessionPackets = new Map<string, KnowledgePacket[]>();
 
   // ============================================================================
   // Build Lifecycle
@@ -297,44 +305,267 @@ class BuildOrchestratorImpl {
   }
 
   // ============================================================================
+  // Knowledge Packet Enhancement
+  // ============================================================================
+
+  /**
+   * Load and apply knowledge packets for a build session
+   * Call this before starting code generation to enhance with user's applied packets
+   */
+  async loadSessionEnhancements(sessionId: string, userId: string): Promise<BuildEnhancement | null> {
+    try {
+      // Get user's applied packets for build mode
+      const appliedPackets = await masterRpcClient.getUserAppliedPackets('build');
+
+      if (appliedPackets.build.length === 0) {
+        console.log('[BuildOrchestrator] No build packets applied for user');
+        return null;
+      }
+
+      // Store packets for this session
+      this.sessionPackets.set(sessionId, appliedPackets.build);
+
+      // Apply enhancements using the packet enhancer service
+      const enhancement = await packetEnhancerService.enhanceBuildMode(sessionId, appliedPackets.build);
+      this.sessionEnhancements.set(sessionId, enhancement);
+
+      emitBuildEvent('packets.applied', {
+        sessionId,
+        userId,
+        packetCount: appliedPackets.build.length,
+        patternsAdded: enhancement.patternsAdded,
+        templatesAdded: enhancement.templatesAdded,
+      });
+
+      console.log('[BuildOrchestrator] Applied build enhancements:', {
+        patterns: enhancement.patterns.length,
+        templates: enhancement.templates.length,
+        guidance: enhancement.architecturalGuidance.length,
+      });
+
+      return enhancement;
+    } catch (error) {
+      console.error('[BuildOrchestrator] Failed to load session enhancements:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get enhancement context for LLM prompts
+   * Returns formatted context from applied knowledge packets
+   */
+  getEnhancementContext(sessionId: string): string {
+    return packetEnhancerService.getBuildPromptContext(sessionId);
+  }
+
+  /**
+   * Get code patterns for a specific language from applied packets
+   */
+  getAppliedPatterns(sessionId: string, language?: string) {
+    return packetEnhancerService.getPatterns(sessionId, language);
+  }
+
+  /**
+   * Get code templates from applied packets
+   */
+  getAppliedTemplates(sessionId: string, language?: string) {
+    return packetEnhancerService.getTemplates(sessionId, language);
+  }
+
+  /**
+   * Clear session enhancements when build is complete
+   */
+  clearSessionEnhancements(sessionId: string): void {
+    this.sessionEnhancements.delete(sessionId);
+    this.sessionPackets.delete(sessionId);
+    packetEnhancerService.clearSession(sessionId);
+  }
+
+  // ============================================================================
   // Code Generation
   // ============================================================================
 
   /**
-   * Generate code for a request
+   * Generate code for a request using Unified LLM Service
+   * Enhanced with knowledge packets when available
    */
-  async generateCode(request: CodeGenRequest): Promise<CodeGenResult> {
+  async generateCode(request: CodeGenRequest, sessionId?: string): Promise<CodeGenResult> {
     const startTime = Date.now();
 
-    // This would integrate with actual LLM for code generation
-    // For now, return a placeholder result
-    const result: CodeGenResult = {
+    try {
+      // Use the Unified LLM Client for real AI-powered code generation
+      const llmClient = getUnifiedLLMClient();
+
+      // Check if LLM is available
+      const isAvailable = await llmClient.healthCheck();
+
+      if (isAvailable) {
+        // Get packet enhancement context if session has applied packets
+        let enhancedContext = request.context || '';
+        if (sessionId) {
+          const packetContext = this.getEnhancementContext(sessionId);
+          if (packetContext) {
+            enhancedContext = `${packetContext}\n\n${enhancedContext}`;
+            console.log('[BuildOrchestrator] Enhanced code gen with packet context');
+          }
+
+          // Add relevant patterns as hints
+          const patterns = this.getAppliedPatterns(sessionId, request.language);
+          if (patterns.length > 0) {
+            const patternHints = patterns.map(p => `- ${p.name}: ${p.description}`).join('\n');
+            enhancedContext = `[Available Patterns for ${request.language}:\n${patternHints}]\n\n${enhancedContext}`;
+          }
+        }
+
+        // Generate code using the LLM with enhanced context
+        const llmResult = await llmClient.generateCode({
+          intent: request.intent,
+          language: request.language,
+          framework: request.framework,
+          context: enhancedContext,
+          existingCode: request.existingCode,
+        });
+
+        emitBuildEvent('code.generated', {
+          language: request.language,
+          framework: request.framework,
+          success: llmResult.success,
+          provider: llmResult.metadata.provider,
+          tokensUsed: llmResult.metadata.tokensUsed,
+        });
+
+        return {
+          success: llmResult.success,
+          code: llmResult.code,
+          explanation: llmResult.explanation,
+          warnings: llmResult.warnings,
+          suggestions: llmResult.suggestions,
+          metadata: {
+            requestId: llmResult.metadata.requestId,
+            tokensUsed: llmResult.metadata.tokensUsed,
+            generationTime: llmResult.metadata.generationTime,
+          },
+        };
+      }
+
+      // Fallback to template-based generation if LLM unavailable
+      console.warn('[BuildOrchestrator] LLM unavailable, using template fallback');
+      return this.generateCodeFromTemplate(request, startTime);
+
+    } catch (error) {
+      console.error('[BuildOrchestrator] Code generation error:', error);
+
+      // Fallback on error
+      return this.generateCodeFromTemplate(request, startTime, error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * Fallback template-based code generation when LLM is unavailable
+   */
+  private generateCodeFromTemplate(
+    request: CodeGenRequest,
+    startTime: number,
+    errorMessage?: string
+  ): CodeGenResult {
+    const templates: Record<string, string> = {
+      typescript: `/**
+ * ${request.intent}
+ *
+ * Generated by Infinity Builder
+ * Language: ${request.language}
+ * Framework: ${request.framework || 'none'}
+ */
+
+// TODO: Implement ${request.intent}
+export function main() {
+  console.log('Implementation pending');
+}
+
+export default main;
+`,
+      javascript: `/**
+ * ${request.intent}
+ *
+ * Generated by Infinity Builder
+ */
+
+// TODO: Implement ${request.intent}
+function main() {
+  console.log('Implementation pending');
+}
+
+module.exports = { main };
+`,
+      python: `"""
+${request.intent}
+
+Generated by Infinity Builder
+"""
+
+def main():
+    # TODO: Implement ${request.intent}
+    print("Implementation pending")
+
+if __name__ == "__main__":
+    main()
+`,
+    };
+
+    const code = templates[request.language] || templates.typescript;
+
+    emitBuildEvent('code.generated', {
+      language: request.language,
+      framework: request.framework,
       success: true,
-      code: `// Generated code for: ${request.intent}\n// TODO: Implement actual code generation`,
-      explanation: `This would generate ${request.language} code for: ${request.intent}`,
-      warnings: [],
-      suggestions: [
-        {
-          type: 'best_practice',
-          title: 'Add error handling',
-          description: 'Consider adding try-catch blocks for async operations',
-          impact: 'medium',
-        },
-      ],
+      fallback: true,
+    });
+
+    const warnings: CodeWarning[] = errorMessage
+      ? [
+          { type: 'compatibility', severity: 'warning', message: `LLM code generation failed: ${errorMessage}` },
+          { type: 'style', severity: 'info', message: 'Using template fallback - manual implementation required' },
+        ]
+      : [
+          { type: 'compatibility', severity: 'info', message: 'LLM service unavailable - using template fallback' },
+          { type: 'style', severity: 'info', message: 'Manual implementation required' },
+        ];
+
+    const suggestions: CodeSuggestion[] = [
+      {
+        type: 'improvement',
+        title: 'Implement main logic',
+        description: `Replace the TODO with actual implementation for: ${request.intent}`,
+        impact: 'high',
+      },
+      {
+        type: 'best_practice',
+        title: 'Add error handling',
+        description: 'Consider adding try-catch blocks for async operations',
+        impact: 'medium',
+      },
+      {
+        type: 'improvement',
+        title: 'Add unit tests',
+        description: 'Create unit tests for the generated code',
+        impact: 'medium',
+      },
+    ];
+
+    return {
+      success: true,
+      code,
+      explanation: errorMessage
+        ? `Template-based code generated (LLM error: ${errorMessage}). Please implement the actual logic.`
+        : `Template-based code generated. LLM service unavailable - please implement the actual logic for: ${request.intent}`,
+      warnings,
+      suggestions,
       metadata: {
         requestId: `codegen_${Date.now()}`,
         tokensUsed: 0,
         generationTime: Date.now() - startTime,
       },
     };
-
-    emitBuildEvent('code.generated', {
-      language: request.language,
-      framework: request.framework,
-      success: true,
-    });
-
-    return result;
   }
 
   // ============================================================================

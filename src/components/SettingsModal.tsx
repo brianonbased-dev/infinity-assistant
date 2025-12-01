@@ -8,10 +8,14 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages } from 'lucide-react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages, Package } from 'lucide-react';
 import { UserPreferences } from '@/components/BuilderOnboarding';
 import type { MemoryEntry, CompressedMemory } from '@/lib/knowledge/types';
+import type { KnowledgePacket } from '@/services/MasterRpcClient';
+
+// Lazy load marketplace component
+const KnowledgeMarketplace = lazy(() => import('@/components/marketplace/KnowledgeMarketplace'));
 
 /**
  * UI-friendly memory format returned by the API
@@ -66,6 +70,8 @@ interface SettingsModalProps {
   syncEnabled: boolean;
   onSyncChange: (enabled: boolean) => void;
   conversationId?: string;
+  onPacketApplied?: (packet: KnowledgePacket, mode: 'assistant' | 'build') => void;
+  onPacketRemoved?: (packetId: string, mode: 'assistant' | 'build') => void;
 }
 
 const roleOptions = [
@@ -132,11 +138,13 @@ export function SettingsModal({
   syncEnabled,
   onSyncChange,
   conversationId,
+  onPacketApplied,
+  onPacketRemoved,
 }: SettingsModalProps) {
   const [editedPrefs, setEditedPrefs] = useState<UserPreferences>(
     preferences || defaultPreferences
   );
-  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'voice' | 'memory' | 'sync'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'assistant' | 'voice' | 'memory' | 'packets' | 'sync'>('profile');
 
   // Memory management state
   const [memory, setMemory] = useState<UIConversationMemory | null>(null);
@@ -419,6 +427,17 @@ export function SettingsModal({
           >
             <Brain className="w-4 h-4 inline mr-2" />
             Memory
+          </button>
+          <button
+            onClick={() => setActiveTab('packets')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'packets'
+                ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/10'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Package className="w-4 h-4 inline mr-2" />
+            Packets
           </button>
           <button
             onClick={() => setActiveTab('sync')}
@@ -1108,6 +1127,42 @@ export function SettingsModal({
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'packets' && (
+            <div className="space-y-4 -mx-6 -my-6">
+              {/* Knowledge Marketplace Info */}
+              <div className="px-6 pt-6">
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Package className="w-5 h-5 text-cyan-400 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-cyan-400">Knowledge Packets</h4>
+                      <p className="text-sm text-gray-300 mt-1">
+                        Enhance your Assistant and Build experiences with specialized knowledge packets.
+                        Apply patterns, insights, and expertise to get more contextual and helpful responses.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Embedded Marketplace */}
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-16">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+                  </div>
+                }
+              >
+                <KnowledgeMarketplace
+                  defaultMode="all"
+                  onPacketApplied={onPacketApplied}
+                  onPacketRemoved={onPacketRemoved}
+                  className="h-[400px]"
+                />
+              </Suspense>
             </div>
           )}
 
