@@ -9,8 +9,8 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { MessageCircle, Code, Search, Sparkles, X, Settings } from 'lucide-react';
+import { EmailAuth } from '@/components/EmailAuth';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
 import { BuilderOnboarding, UserPreferences } from '@/components/BuilderOnboarding';
@@ -215,16 +215,7 @@ function InfinityAssistantContent() {
                 >
                   <Settings className="w-5 h-5" />
                 </button>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
-                      Sign In
-                    </button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
+                <EmailAuth />
               </div>
             </div>
           </div>
@@ -282,16 +273,7 @@ function InfinityAssistantContent() {
               >
                 InfinityAssistant.io
               </a>
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-white">
-                    Sign In
-                  </button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
+              <EmailAuth />
             </div>
           </div>
         </div>
