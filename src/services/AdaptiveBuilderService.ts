@@ -367,13 +367,28 @@ export class AdaptiveBuilderService {
       .map(w => w.content)
       .slice(0, 5);
 
+    // Get build history from builder profile if available
+    const buildHistory: BuildOutcome[] = [];
+    if (profile.builder?.buildHistory) {
+      for (const build of profile.builder.buildHistory.slice(-10)) {
+        buildHistory.push({
+          templateId: build.templateId,
+          outcome: build.outcome,
+          learnings: [], // Populated elsewhere
+        });
+      }
+    }
+
+    // Use builder-specific experience level if available
+    const effectiveLevel = profile.builder?.experienceLevel || experienceLevel;
+
     const context: UserContext = {
       userId,
-      experienceLevel,
+      experienceLevel: effectiveLevel,
       personalityType,
       learningStyle: this.inferLearningStyle(profile),
       preferredTone,
-      buildHistory: [], // Will be populated from build records
+      buildHistory,
       interests: profile.interests || [],
       painPoints,
       goals,
@@ -533,15 +548,16 @@ export class AdaptiveBuilderService {
 
   /**
    * Record build outcome for learning
+   * Persists to UserMemoryStorageService for long-term storage
    */
-  recordBuildOutcome(
+  async recordBuildOutcome(
     userId: string,
     templateId: string,
     templateName: string,
     outcome: 'success' | 'abandoned' | 'modified',
     tokensUsed: number,
     feedback?: string
-  ): void {
+  ): Promise<void> {
     const context = this.userContextCache.get(userId);
     if (context) {
       context.buildHistory.push({
@@ -553,9 +569,19 @@ export class AdaptiveBuilderService {
         tokensUsed,
       });
       this.userContextCache.set(userId, context);
+    }
 
-      // TODO: Persist to user profile service
+    // Persist to user memory service
+    try {
+      await this.userMemoryService.recordBuildCompletion(userId, {
+        templateId,
+        projectName: templateName,
+        outcome: outcome === 'modified' ? 'partial' : outcome,
+        tokensUsed,
+      });
       logger.info(`[AdaptiveBuilder] Recorded build outcome for ${userId}: ${outcome}`);
+    } catch (error) {
+      logger.warn(`[AdaptiveBuilder] Failed to persist build outcome:`, error);
     }
   }
 

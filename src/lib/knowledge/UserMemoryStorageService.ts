@@ -121,6 +121,50 @@ export interface UserProfile {
   preferredTopics: string[];
   communicationStyle: 'concise' | 'detailed' | 'conversational';
   timezone?: string;
+
+  // Builder-specific profile (set when user subscribes to Builder)
+  builder?: BuilderProfile;
+}
+
+/**
+ * Builder-specific profile preferences
+ * Stored when user completes Builder onboarding
+ */
+export interface BuilderProfile {
+  /** Builder experience level: easy (companion), medium, experienced */
+  experienceLevel: 'easy' | 'medium' | 'experienced';
+
+  /** Autonomy level (0-1): 1.0 = full autonomy, 0.2 = minimal */
+  autonomyLevel: number;
+
+  /** Number of builds completed */
+  buildCount: number;
+
+  /** Preferred tech stack */
+  preferredTechStack?: {
+    frontend?: string[];
+    backend?: string[];
+    database?: string[];
+    hosting?: string[];
+  };
+
+  /** Last used templates */
+  recentTemplates?: string[];
+
+  /** Build history for learning */
+  buildHistory?: {
+    templateId: string;
+    projectName: string;
+    completedAt: string;
+    outcome: 'success' | 'partial' | 'abandoned';
+    tokensUsed: number;
+  }[];
+
+  /** When builder profile was created */
+  createdAt: string;
+
+  /** Last builder activity */
+  lastActiveAt: string;
 }
 
 /**
@@ -889,6 +933,200 @@ export class UserMemoryStorageService {
     parts.push(`Cycle: ${session.cycleCount}`);
 
     return parts.join('\n');
+  }
+
+  // ==========================================================================
+  // BUILDER PROFILE OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Initialize builder profile when user subscribes to Builder
+   * Sets experience level and autonomy configuration
+   */
+  async initializeBuilderProfile(
+    userId: string,
+    experienceLevel: 'easy' | 'medium' | 'experienced'
+  ): Promise<BuilderProfile> {
+    const memory = await this.getLocalMemory(userId);
+
+    // Map experience level to autonomy
+    const autonomyMap = {
+      easy: 1.0,       // Full autonomy - companion handles everything
+      medium: 0.6,     // Balanced - user has some control
+      experienced: 0.2, // Minimal autonomy - user drives
+    };
+
+    const builderProfile: BuilderProfile = {
+      experienceLevel,
+      autonomyLevel: autonomyMap[experienceLevel],
+      buildCount: 0,
+      recentTemplates: [],
+      buildHistory: [],
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    };
+
+    memory.profile.builder = builderProfile;
+    await this.saveLocalMemory(userId, memory);
+
+    return builderProfile;
+  }
+
+  /**
+   * Get builder profile (returns null if not subscribed)
+   */
+  async getBuilderProfile(userId: string): Promise<BuilderProfile | null> {
+    const memory = await this.getLocalMemory(userId);
+    return memory.profile.builder || null;
+  }
+
+  /**
+   * Update builder experience level (user can change their preference)
+   */
+  async updateBuilderExperienceLevel(
+    userId: string,
+    experienceLevel: 'easy' | 'medium' | 'experienced'
+  ): Promise<BuilderProfile | null> {
+    const memory = await this.getLocalMemory(userId);
+
+    if (!memory.profile.builder) {
+      // Initialize if not exists
+      return this.initializeBuilderProfile(userId, experienceLevel);
+    }
+
+    // Update experience level and autonomy
+    const autonomyMap = {
+      easy: 1.0,
+      medium: 0.6,
+      experienced: 0.2,
+    };
+
+    memory.profile.builder.experienceLevel = experienceLevel;
+    memory.profile.builder.autonomyLevel = autonomyMap[experienceLevel];
+    memory.profile.builder.lastActiveAt = new Date().toISOString();
+
+    await this.saveLocalMemory(userId, memory);
+    return memory.profile.builder;
+  }
+
+  /**
+   * Record a completed build in history
+   */
+  async recordBuildCompletion(
+    userId: string,
+    build: {
+      templateId: string;
+      projectName: string;
+      outcome: 'success' | 'partial' | 'abandoned';
+      tokensUsed: number;
+    }
+  ): Promise<void> {
+    const memory = await this.getLocalMemory(userId);
+
+    if (!memory.profile.builder) {
+      // Initialize with default medium level
+      await this.initializeBuilderProfile(userId, 'medium');
+      return this.recordBuildCompletion(userId, build);
+    }
+
+    // Add to history
+    const historyEntry = {
+      ...build,
+      completedAt: new Date().toISOString(),
+    };
+
+    memory.profile.builder.buildHistory = memory.profile.builder.buildHistory || [];
+    memory.profile.builder.buildHistory.push(historyEntry);
+
+    // Limit history to last 50 builds
+    if (memory.profile.builder.buildHistory.length > 50) {
+      memory.profile.builder.buildHistory = memory.profile.builder.buildHistory.slice(-50);
+    }
+
+    // Update build count and recent templates
+    memory.profile.builder.buildCount++;
+    memory.profile.builder.recentTemplates = memory.profile.builder.recentTemplates || [];
+
+    if (!memory.profile.builder.recentTemplates.includes(build.templateId)) {
+      memory.profile.builder.recentTemplates.unshift(build.templateId);
+      memory.profile.builder.recentTemplates = memory.profile.builder.recentTemplates.slice(0, 10);
+    }
+
+    memory.profile.builder.lastActiveAt = new Date().toISOString();
+    await this.saveLocalMemory(userId, memory);
+  }
+
+  /**
+   * Update builder's preferred tech stack based on their builds
+   */
+  async updateBuilderTechStack(
+    userId: string,
+    techStack: {
+      frontend?: string[];
+      backend?: string[];
+      database?: string[];
+      hosting?: string[];
+    }
+  ): Promise<void> {
+    const memory = await this.getLocalMemory(userId);
+
+    if (!memory.profile.builder) {
+      await this.initializeBuilderProfile(userId, 'medium');
+      return this.updateBuilderTechStack(userId, techStack);
+    }
+
+    memory.profile.builder.preferredTechStack = {
+      ...memory.profile.builder.preferredTechStack,
+      ...techStack,
+    };
+
+    memory.profile.builder.lastActiveAt = new Date().toISOString();
+    await this.saveLocalMemory(userId, memory);
+  }
+
+  /**
+   * Check if user is subscribed to Builder
+   */
+  async hasBuilderSubscription(userId: string): Promise<boolean> {
+    const profile = await this.getBuilderProfile(userId);
+    return profile !== null;
+  }
+
+  /**
+   * Get build statistics for user
+   */
+  async getBuilderStats(userId: string): Promise<{
+    totalBuilds: number;
+    successRate: number;
+    averageTokens: number;
+    favoriteTemplates: string[];
+  } | null> {
+    const profile = await this.getBuilderProfile(userId);
+    if (!profile || !profile.buildHistory) {
+      return null;
+    }
+
+    const history = profile.buildHistory;
+    const successfulBuilds = history.filter(b => b.outcome === 'success').length;
+    const totalTokens = history.reduce((sum, b) => sum + b.tokensUsed, 0);
+
+    // Count template usage
+    const templateCounts: Record<string, number> = {};
+    for (const build of history) {
+      templateCounts[build.templateId] = (templateCounts[build.templateId] || 0) + 1;
+    }
+
+    const favoriteTemplates = Object.entries(templateCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([id]) => id);
+
+    return {
+      totalBuilds: profile.buildCount,
+      successRate: history.length > 0 ? successfulBuilds / history.length : 0,
+      averageTokens: history.length > 0 ? totalTokens / history.length : 0,
+      favoriteTemplates,
+    };
   }
 }
 
