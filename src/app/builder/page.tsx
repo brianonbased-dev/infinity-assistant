@@ -14,8 +14,8 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs';
 import { Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
+import { EmailAuth } from '@/components/EmailAuth';
 import BuilderMode from '@/components/BuilderMode';
 
 function BuilderContent() {
@@ -111,16 +111,7 @@ function BuilderContent() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
-                      Sign In
-                    </button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
+                <EmailAuth />
               </div>
             </div>
           </div>
@@ -198,16 +189,7 @@ function BuilderContent() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
-                    Sign In
-                  </button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
+              <EmailAuth />
             </div>
           </div>
         </div>
