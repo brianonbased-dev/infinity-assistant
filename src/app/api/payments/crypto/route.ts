@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { cryptoPaymentService, type CryptoToken } from '@/services/CryptoPaymentService';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 
@@ -77,11 +77,13 @@ async function activateSubscription(
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const userId = user.id;
 
     const body = await request.json();
     const { action, token, amount, planId, txHash, walletAddress } = body;

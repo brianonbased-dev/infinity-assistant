@@ -5,21 +5,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({
         tier: 'free',
         status: 'active',
         authenticated: false
       });
     }
+
+    const userId = user.id;
 
     const supabase = getSupabaseClient();
     const { data: subscription, error } = await supabase

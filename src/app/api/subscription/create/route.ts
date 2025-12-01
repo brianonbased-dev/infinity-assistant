@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getStripeClient, STRIPE_PRICE_IDS } from '@/lib/stripe';
 import logger from '@/utils/logger';
 
@@ -18,11 +18,13 @@ interface CreateSubscriptionRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    const userId = user.id;
 
     const body: CreateSubscriptionRequest = await request.json();
     const { tier, interval, successUrl, cancelUrl } = body;

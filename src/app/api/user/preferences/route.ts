@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 
@@ -23,11 +23,11 @@ interface UserPreferences {
 // GET - Retrieve preferences
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
 
-    // Allow anonymous users via cookie
+    // Allow anonymous users via cookie as fallback
     const anonUserId = request.cookies.get('infinity_anon_user')?.value;
-    const effectiveUserId = userId || anonUserId;
+    const effectiveUserId = user?.id || anonUserId;
 
     if (!effectiveUserId) {
       return NextResponse.json({ preferences: {} });
@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
 // POST - Save preferences
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
     const anonUserId = request.cookies.get('infinity_anon_user')?.value;
-    const effectiveUserId = userId || anonUserId;
+    const effectiveUserId = user?.id || anonUserId;
 
     if (!effectiveUserId) {
       return NextResponse.json({ error: 'User identification required' }, { status: 400 });

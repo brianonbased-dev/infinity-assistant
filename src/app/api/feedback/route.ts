@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 
@@ -19,9 +19,9 @@ interface FeedbackRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
     const anonUserId = request.cookies.get('infinity_anon_user')?.value;
-    const effectiveUserId = userId || anonUserId || 'anonymous';
+    const effectiveUserId = user?.id || anonUserId || 'anonymous';
 
     const body: FeedbackRequest = await request.json();
     const { type, message, rating, conversationId, metadata } = body;

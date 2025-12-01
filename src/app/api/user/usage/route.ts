@@ -6,15 +6,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { getCurrentUser } from '@/lib/auth';
 import { getSupabaseClient, TABLES, getUsageLimits } from '@/lib/supabase';
 import logger from '@/utils/logger';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await getCurrentUser(request);
     const anonUserId = request.cookies.get('infinity_anon_user')?.value;
-    const effectiveUserId = userId || anonUserId;
+    const effectiveUserId = user?.id || anonUserId;
 
     const defaultLimits = getUsageLimits('free');
 

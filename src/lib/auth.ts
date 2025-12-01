@@ -95,7 +95,28 @@ export async function getCurrentUser(req: NextRequest): Promise<AuthenticatedUse
       }
     }
 
-    // Check session cookie
+    // Check email-based session cookies (primary auth method)
+    const infinitySession = req.cookies.get('infinity_session');
+    const infinityUserId = req.cookies.get('infinity_user_id');
+    if (infinitySession?.value && infinityUserId?.value) {
+      const supabase = getSupabaseClient();
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('id, email, tier')
+        .eq('id', infinityUserId.value)
+        .single();
+
+      if (user && !error) {
+        return {
+          id: user.id,
+          email: user.email,
+          plan: user.tier || 'free',
+          role: 'user',
+        };
+      }
+    }
+
+    // Check legacy session cookie
     const sessionCookie = req.cookies.get('session');
     if (sessionCookie?.value) {
       // Validate session token
