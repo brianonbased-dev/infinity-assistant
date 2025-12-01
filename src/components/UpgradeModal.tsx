@@ -243,8 +243,8 @@ function UpgradeModalContent({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            planId: plan.id,
-            period: plan.period,
+            tier: plan.id,
+            interval: plan.period === 'yearly' ? 'annual' : 'monthly',
           }),
         });
 
