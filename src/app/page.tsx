@@ -9,6 +9,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { MessageCircle, Code, Search, Sparkles, X, Settings } from 'lucide-react';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
@@ -214,9 +215,16 @@ function InfinityAssistantContent() {
                 >
                   <Settings className="w-5 h-5" />
                 </button>
-                <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
-                  Sign In
-                </button>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm font-semibold text-white">
+                      Sign In
+                    </button>
+                  </SignInButton>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
               </div>
             </div>
           </div>
@@ -274,9 +282,16 @@ function InfinityAssistantContent() {
               >
                 InfinityAssistant.io
               </a>
-              <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-white">
-                Sign In
-              </button>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-white">
+                    Sign In
+                  </button>
+                </SignInButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
             </div>
           </div>
         </div>
@@ -373,20 +388,26 @@ function InfinityAssistantContent() {
             </div>
           </div>
 
-          {/* Build */}
-          <div className="bg-black/40 border border-green-500/20 rounded-lg p-6 hover:border-green-500/40 transition-all">
-            <Code className="w-12 h-12 text-green-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Pattern-Driven Build</h4>
-            <p className="text-gray-400 mb-4">
-              Build with best practices. Architecture guidance, code generation, and implementation
-              patterns from real-world wisdom.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Patterns</span>
-              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Best Practices</span>
-              <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Code Gen</span>
+
+          {/* Build - Links to dedicated Builder page */}
+          <a href="/builder" className="block">
+            <div className="bg-black/40 border border-green-500/20 rounded-lg p-6 hover:border-green-500/40 transition-all group cursor-pointer">
+              <Code className="w-12 h-12 text-green-400 mb-4 group-hover:scale-110 transition-transform" />
+              <h4 className="text-xl font-semibold mb-2">Infinity Builder</h4>
+              <p className="text-gray-400 mb-4">
+                Build complete applications with AI assistance. Choose your experience level
+                and let Infinity guide you from idea to deployment.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">3 Experience Levels</span>
+                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Templates</span>
+                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Full Apps</span>
+              </div>
+              <div className="text-sm text-green-400 font-medium group-hover:text-green-300 transition-colors">
+                Start Building →
+              </div>
             </div>
-          </div>
+          </a>
         </div>
       </section>
 
@@ -472,9 +493,11 @@ function InfinityAssistantContent() {
                   <span className="text-gray-300">Priority support</span>
                 </li>
               </ul>
-              <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg transition-all">
-                Upgrade to Pro
-              </button>
+              <a href="/pricing" className="block w-full">
+                <button className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg transition-all">
+                  Upgrade to Pro
+                </button>
+              </a>
             </div>
           </div>
         </div>
@@ -513,9 +536,11 @@ function InfinityAssistantContent() {
                   <span className="text-gray-300">Architecture guidance</span>
                 </li>
               </ul>
-              <button className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition-colors">
-                Get Builder Pro
-              </button>
+              <a href="/pricing?tab=builder" className="block w-full">
+                <button className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition-colors">
+                  Get Builder Pro
+                </button>
+              </a>
             </div>
 
             {/* Builder Business */}
@@ -546,9 +571,11 @@ function InfinityAssistantContent() {
                   <span className="text-gray-300">Priority support</span>
                 </li>
               </ul>
-              <button className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all">
-                Get Business
-              </button>
+              <a href="/pricing?tab=builder" className="block w-full">
+                <button className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all">
+                  Get Business
+                </button>
+              </a>
             </div>
 
             {/* Builder Enterprise */}
@@ -578,9 +605,11 @@ function InfinityAssistantContent() {
                   <span className="text-gray-300">SLA guarantee</span>
                 </li>
               </ul>
-              <button className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                Contact Sales
-              </button>
+              <a href="mailto:sales@infinityassistant.io" className="block w-full">
+                <button type="button" className="w-full px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                  Contact Sales
+                </button>
+              </a>
             </div>
           </div>
         </div>
