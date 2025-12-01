@@ -67,29 +67,34 @@ const EXPERIENCE_CONFIGS: Record<ExperienceLevel, {
 }> = {
   easy: {
     title: 'Companion Builder',
-    subtitle: 'Ready-made UI IDE • White-glove service',
-    description: 'Full orchestration with browser automation. We handle OAuth, payments, deployments - you just describe what you want and watch it happen.',
+    subtitle: 'Sit back • Relax • We handle it',
+    description: 'Chill while we build. Listen to music, take a tour, explore. We only interrupt when you need to make a choice.',
     icon: Sparkles,
     color: 'text-green-400',
     bgGradient: 'from-green-500/20 to-emerald-500/20',
     borderColor: 'border-green-500/50',
     features: [
-      'Built-in visual IDE interface',
-      'Browser automation (watch AI work)',
-      'OAuth & payment setup included',
-      'Proprietary backend handles complexity',
-      'Cloud agents do everything',
+      'Ambient experience with music',
+      'Interactive tours while building',
+      'Watch AI work in real-time',
+      'Only notified for key decisions',
+      'Everything handled automatically',
     ],
     autonomyLevel: 100,
     questionsCount: '5-8',
     buildTime: '5-10 min',
     tokenCost: 'high',
-    bestFor: 'Non-technical founders, quick MVPs, hands-off building',
+    bestFor: 'Non-technical founders, busy executives, hands-off building',
     agentConfig: {
       experienceLevel: 'easy',
       autonomyLevel: 1.0,
       decisionThreshold: 0.7,
       exposedCapabilities: [
+        // Ambient experience
+        'ambient_mode',
+        'music_player',
+        'interactive_tours',
+        'exploration_mode',
         // Core UI IDE capabilities
         'visual_ide',
         'natural_language_input',
@@ -105,6 +110,9 @@ const EXPERIENCE_CONFIGS: Record<ExperienceLevel, {
         'cloud_agents',
         'automated_deployment',
         'credential_management',
+        // Notification system
+        'smart_notifications',
+        'decision_prompts',
       ],
       hiddenCapabilities: [
         'terminal_access',
@@ -114,12 +122,14 @@ const EXPERIENCE_CONFIGS: Record<ExperienceLevel, {
         'debugging_tools',
         'raw_api_access',
       ],
-      systemPromptAdditions: `You are a white-glove companion with full orchestration capabilities.
-Use browser automation to show users what you're doing - they watch, you build.
-Handle all OAuth flows, payment integrations, and deployments automatically.
-Make ALL decisions autonomously. Focus on outcomes, not code.
-Use the visual IDE to show progress. Cloud agents handle the heavy lifting.
-This is premium service - be warm, proactive, and handle everything.`,
+      systemPromptAdditions: `You are a white-glove companion creating a relaxing build experience.
+Start by getting to know the user - ask what kind of music they like and play it for them.
+Let them know they can explore around, take a tour, or just watch you work.
+Handle EVERYTHING automatically. Only notify them when you absolutely need a decision.
+When you need input, be gentle: "Hey! Quick question when you have a sec..."
+Make this feel like a premium spa experience - they relax, you handle the complexity.
+Use browser automation so they can watch the magic happen.
+Cloud agents do all the heavy lifting. Focus on outcomes, not process.`,
     },
   },
   medium: {
