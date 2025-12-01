@@ -899,6 +899,103 @@ class MasterRpcClient {
       customerService: result.results[2]?.success ? result.results[2].data as { agentId: string; activeChats: number; queuedRequests: number; avgResponseTime: number } : null,
     };
   }
+
+  // ============================================================================
+  // MARKETPLACE (Knowledge Packet Marketplace - User Level)
+  // ============================================================================
+
+  /**
+   * List published packets in the marketplace
+   */
+  async listMarketplacePackets(options?: {
+    targetMode?: 'assistant' | 'build' | 'all';
+    type?: KnowledgePacket['type'];
+    domain?: string;
+    tags?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<{ packets: KnowledgePacket[]; total: number }> {
+    const result = await this.execute<{ packets: KnowledgePacket[]; total: number }>('marketplace.packets.list', options);
+    return result.success ? result.data! : { packets: [], total: 0 };
+  }
+
+  /**
+   * Get featured marketplace packets
+   */
+  async getFeaturedPackets(options?: {
+    targetMode?: 'assistant' | 'build' | 'all';
+    category?: 'popular' | 'new' | 'recommended';
+  }): Promise<{ packets: KnowledgePacket[]; total: number }> {
+    const result = await this.execute<{ packets: KnowledgePacket[]; total: number }>('marketplace.packets.featured', options);
+    return result.success ? result.data! : { packets: [], total: 0 };
+  }
+
+  /**
+   * Apply a packet to user's Assistant or Build mode
+   */
+  async applyPacket(
+    packetId: string,
+    targetMode: 'assistant' | 'build'
+  ): Promise<{ applicationId: string; status: string } | null> {
+    const result = await this.execute<{ applicationId: string; status: string; message: string }>('marketplace.packets.apply', {
+      packetId,
+      targetMode,
+    });
+    return result.success ? { applicationId: result.data!.applicationId, status: result.data!.status } : null;
+  }
+
+  /**
+   * Remove a packet from user's mode
+   */
+  async unapplyPacket(
+    packetId: string,
+    targetMode: 'assistant' | 'build'
+  ): Promise<boolean> {
+    const result = await this.execute('marketplace.packets.unapply', { packetId, targetMode });
+    return result.success;
+  }
+
+  /**
+   * Get user's applied packets
+   */
+  async getUserAppliedPackets(targetMode?: 'assistant' | 'build' | 'all'): Promise<{
+    assistant: KnowledgePacket[];
+    build: KnowledgePacket[];
+    totalApplied: number;
+  }> {
+    const result = await this.execute<{
+      appliedPackets: { assistant: KnowledgePacket[]; build: KnowledgePacket[] };
+      totalApplied: number;
+    }>('marketplace.user.packets', { targetMode });
+    return result.success ? {
+      assistant: result.data!.appliedPackets.assistant,
+      build: result.data!.appliedPackets.build,
+      totalApplied: result.data!.totalApplied,
+    } : { assistant: [], build: [], totalApplied: 0 };
+  }
+
+  /**
+   * Enhance current session with applied packets
+   * Called when starting Assistant or Build mode to apply knowledge
+   */
+  async enhanceWithPackets(
+    targetMode: 'assistant' | 'build',
+    packetIds?: string[]
+  ): Promise<{
+    enhanced: boolean;
+    enhancements: { contextAdded: boolean; patternsAdded: boolean; templatesAdded: boolean };
+  }> {
+    const result = await this.execute<{
+      enhanced: boolean;
+      targetMode: string;
+      appliedPackets: string[];
+      enhancements: { contextAdded: boolean; patternsAdded: boolean; templatesAdded: boolean };
+    }>('marketplace.packets.enhance', { targetMode, packetIds });
+    return result.success ? {
+      enhanced: result.data!.enhanced,
+      enhancements: result.data!.enhancements,
+    } : { enhanced: false, enhancements: { contextAdded: false, patternsAdded: false, templatesAdded: false } };
+  }
 }
 
 // ============================================================================
