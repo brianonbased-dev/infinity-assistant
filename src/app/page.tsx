@@ -297,53 +297,71 @@ function InfinityAssistantContent() {
         </div>
       </header>
 
+      {/* Cyber Monday Banner */}
+      <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 py-3 text-center">
+        <p className="text-white font-bold text-sm md:text-base animate-pulse">
+          🔥 CYBER MONDAY SPECIAL: 50% OFF all Pro plans! Use code <span className="bg-white/20 px-2 py-1 rounded">CYBER50</span> at checkout
+        </p>
+      </div>
+
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-5xl md:text-6xl font-bold mb-6">
-            Infinity Assistant:{' '}
+      <section className="container mx-auto px-4 py-16 md:py-20 text-center">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+            Your AI That{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-              Research, Assist, Build
+              Actually Remembers
             </span>
           </h2>
-          <p className="text-xl text-gray-300 mb-8">
-            Your AI-powered research assistant with deep knowledge synthesis. Conduct multi-source
-            research, get intelligent help, and build solutions with best practices built-in.
+          <p className="text-lg md:text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
+            Not just another chatbot. Infinity Assistant learns your preferences, remembers your context,
+            and adapts to how YOU work. Powered by advanced AI with persistent memory across sessions.
           </p>
 
-          {/* Capabilities Badge */}
-          <div className="flex flex-wrap justify-center gap-3 mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full">
+          {/* Capabilities Badge - Enhanced */}
+          <div className="flex flex-wrap justify-center gap-2 md:gap-3 mb-6">
+            <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-full">
               <Search className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-400 text-sm font-medium">Deep Research</span>
+              <span className="text-blue-400 text-xs md:text-sm font-medium">Multi-Source Research</span>
             </div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full">
+            <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-full">
               <MessageCircle className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-400 text-sm font-medium">Knowledge Memory</span>
+              <span className="text-purple-400 text-xs md:text-sm font-medium">Persistent Memory</span>
             </div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
+            <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-full">
               <Code className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-sm font-medium">Pattern-Driven</span>
+              <span className="text-green-400 text-xs md:text-sm font-medium">Code Generation</span>
             </div>
+            <div className="inline-flex items-center gap-2 px-3 md:px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full">
+              <Sparkles className="w-4 h-4 text-orange-400" />
+              <span className="text-orange-400 text-xs md:text-sm font-medium">Adaptive Learning</span>
+            </div>
+          </div>
+
+          {/* Key Differentiators */}
+          <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-8 text-sm text-gray-400">
+            <span className="flex items-center gap-1">✓ Works in 15+ languages</span>
+            <span className="flex items-center gap-1">✓ Learns your style</span>
+            <span className="flex items-center gap-1">✓ No data sold to 3rd parties</span>
           </div>
 
           {/* Free Tier Badge */}
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-500/20 border border-green-500/30 rounded-full mb-8">
             <Sparkles className="w-5 h-5 text-green-400" />
-            <span className="text-green-400 font-semibold">Free Tier: 20 queries/day</span>
+            <span className="text-green-400 font-semibold">Start Free: 20 queries/day, no credit card</span>
           </div>
 
           {/* CTA Button */}
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button
               onClick={handleOpenChat}
-              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-semibold text-lg transition-all shadow-lg shadow-purple-500/50"
+              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-semibold text-lg transition-all shadow-lg shadow-purple-500/50 hover:scale-105"
             >
-              Start Researching
+              Try Infinity Free →
             </button>
             <a href="#pricing">
               <button className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-lg font-semibold text-lg transition-all border border-white/20">
-                View Pricing
+                See Cyber Monday Deals
               </button>
             </a>
           </div>
@@ -351,63 +369,102 @@ function InfinityAssistantContent() {
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-20">
-        <h3 className="text-3xl font-bold text-center mb-4">What You Can Do</h3>
+      <section className="container mx-auto px-4 py-16 md:py-20">
+        <h3 className="text-3xl md:text-4xl font-bold text-center mb-4">Capabilities That Set Us Apart</h3>
         <p className="text-gray-400 text-center mb-12 max-w-2xl mx-auto">
-          Powered by the uAA2++ 8-Phase Protocol with deep knowledge synthesis
+          Built on advanced AI with proprietary knowledge synthesis and adaptive learning
         </p>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {/* Research */}
-          <div className="bg-black/40 border border-blue-500/20 rounded-lg p-6 hover:border-blue-500/40 transition-all">
+          <div className="bg-black/40 border border-blue-500/20 rounded-lg p-6 hover:border-blue-500/40 transition-all hover:transform hover:scale-105">
             <Search className="w-12 h-12 text-blue-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Deep Research</h4>
+            <h4 className="text-xl font-semibold mb-2">Deep Research Engine</h4>
             <p className="text-gray-400 mb-4">
-              Multi-source research with AI synthesis. Combines web search, knowledge base, and
-              cross-domain pattern matching.
+              Goes beyond simple search. Synthesizes information from multiple sources, identifies patterns,
+              and delivers insights you'd miss manually.
             </p>
+            <ul className="text-sm text-gray-400 space-y-1 mb-4">
+              <li>• Real-time web + knowledge base fusion</li>
+              <li>• Cross-domain pattern recognition</li>
+              <li>• Auto-generates follow-up questions</li>
+            </ul>
             <div className="flex flex-wrap gap-2">
-              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Web Search</span>
-              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Knowledge Base</span>
-              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Synthesis</span>
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">10+ Sources</span>
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Citations</span>
+              <span className="text-xs px-2 py-1 bg-blue-500/20 rounded text-blue-300">Summaries</span>
             </div>
           </div>
 
           {/* Assist */}
-          <div className="bg-black/40 border border-purple-500/20 rounded-lg p-6 hover:border-purple-500/40 transition-all">
+          <div className="bg-black/40 border border-purple-500/20 rounded-lg p-6 hover:border-purple-500/40 transition-all hover:transform hover:scale-105">
             <MessageCircle className="w-12 h-12 text-purple-400 mb-4" />
-            <h4 className="text-xl font-semibold mb-2">Intelligent Assist</h4>
+            <h4 className="text-xl font-semibold mb-2">Adaptive Assistant</h4>
             <p className="text-gray-400 mb-4">
-              Context-aware assistance with memory. Learns from conversations and provides
-              personalized, knowledge-rich responses.
+              Not just reactive - proactive. Learns your communication style, work patterns,
+              and preferences to anticipate what you need.
             </p>
+            <ul className="text-sm text-gray-400 space-y-1 mb-4">
+              <li>• Remembers across sessions</li>
+              <li>• Bilingual support (EN/ES + 13 more)</li>
+              <li>• Tone matching & style adaptation</li>
+            </ul>
             <div className="flex flex-wrap gap-2">
               <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Memory</span>
-              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Context</span>
-              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Learning</span>
+              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">15+ Languages</span>
+              <span className="text-xs px-2 py-1 bg-purple-500/20 rounded text-purple-300">Adaptive</span>
             </div>
           </div>
 
 
           {/* Build - Links to dedicated Builder page */}
           <a href="/builder" className="block">
-            <div className="bg-black/40 border border-green-500/20 rounded-lg p-6 hover:border-green-500/40 transition-all group cursor-pointer">
+            <div className="bg-black/40 border border-green-500/20 rounded-lg p-6 hover:border-green-500/40 transition-all group cursor-pointer hover:transform hover:scale-105">
               <Code className="w-12 h-12 text-green-400 mb-4 group-hover:scale-110 transition-transform" />
               <h4 className="text-xl font-semibold mb-2">Infinity Builder</h4>
               <p className="text-gray-400 mb-4">
-                Build complete applications with AI assistance. Choose your experience level
-                and let Infinity guide you from idea to deployment.
+                From idea to deployed app. Whether you're a beginner or expert,
+                Builder adapts to your skill level and guides you through.
               </p>
+              <ul className="text-sm text-gray-400 space-y-1 mb-4">
+                <li>• Easy/Medium/Expert modes</li>
+                <li>• Production-ready code generation</li>
+                <li>• One-click deploy to Vercel/Railway</li>
+              </ul>
               <div className="flex flex-wrap gap-2 mb-4">
-                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">3 Experience Levels</span>
+                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Full Stack</span>
                 <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Templates</span>
-                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Full Apps</span>
+                <span className="text-xs px-2 py-1 bg-green-500/20 rounded text-green-300">Deploy</span>
               </div>
               <div className="text-sm text-green-400 font-medium group-hover:text-green-300 transition-colors">
                 Start Building →
               </div>
             </div>
           </a>
+        </div>
+      </section>
+
+      {/* Social Proof / Stats Section */}
+      <section className="container mx-auto px-4 py-12">
+        <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 rounded-2xl p-8 md:p-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <p className="text-3xl md:text-4xl font-bold text-white mb-1">500K+</p>
+              <p className="text-sm text-gray-400">Queries Processed</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-bold text-white mb-1">15+</p>
+              <p className="text-sm text-gray-400">Languages Supported</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-bold text-white mb-1">99.9%</p>
+              <p className="text-sm text-gray-400">Uptime Guarantee</p>
+            </div>
+            <div>
+              <p className="text-3xl md:text-4xl font-bold text-white mb-1">&lt;2s</p>
+              <p className="text-sm text-gray-400">Avg Response Time</p>
+            </div>
+          </div>
         </div>
       </section>
 
