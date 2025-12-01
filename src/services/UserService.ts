@@ -23,23 +23,27 @@ export class UserService {
    * Get user's current usage count for rate limiting
    */
   async getUserUsageCount(userId: string): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date().toISOString().split('T')[0];
 
     try {
       const supabase = getSupabaseClient();
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from(TABLES.USAGE)
-        .select('*', { count: 'exact', head: true })
+        .select('daily_count')
         .eq('user_id', userId)
-        .gte('created_at', today.toISOString());
+        .eq('date', today)
+        .single();
 
       if (error) {
+        // No record for today = 0 usage
+        if (error.code === 'PGRST116') {
+          return 0;
+        }
         logger.error('[UserService] Error fetching usage count:', error);
         return 0;
       }
 
-      return count || 0;
+      return data?.daily_count || 0;
     } catch (error) {
       logger.error('[UserService] Error in getUserUsageCount:', error);
       return 0;
@@ -47,21 +51,74 @@ export class UserService {
   }
 
   /**
+   * Get detailed usage stats for a user
+   */
+  async getUserUsageStats(userId: string): Promise<{
+    today: number;
+    thisMonth: number;
+    tokensUsed: number;
+  }> {
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from(TABLES.USAGE)
+        .select('daily_count, monthly_count, tokens_used')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
+
+      if (error || !data) {
+        return { today: 0, thisMonth: 0, tokensUsed: 0 };
+      }
+
+      return {
+        today: data.daily_count || 0,
+        thisMonth: data.monthly_count || 0,
+        tokensUsed: data.tokens_used || 0,
+      };
+    } catch (error) {
+      logger.error('[UserService] Error in getUserUsageStats:', error);
+      return { today: 0, thisMonth: 0, tokensUsed: 0 };
+    }
+  }
+
+  /**
    * Record usage for rate limiting
+   * Uses database function for atomic increment
    */
   async recordUsage(
     userId: string,
-    conversationId: string,
+    _conversationId: string,
     tokensUsed: number = 0
   ): Promise<void> {
     try {
       const supabase = getSupabaseClient();
-      await supabase.from(TABLES.USAGE).insert({
-        user_id: userId,
-        conversation_id: conversationId,
-        tokens_used: tokensUsed,
-        created_at: new Date().toISOString(),
+
+      // Use the database function for atomic increment
+      const { error } = await supabase.rpc('increment_usage', {
+        p_user_id: userId,
+        p_tokens: tokensUsed,
       });
+
+      if (error) {
+        // Fallback to upsert if function doesn't exist
+        logger.warn('[UserService] increment_usage RPC failed, using upsert:', error.message);
+        const today = new Date().toISOString().split('T')[0];
+
+        await supabase.from(TABLES.USAGE).upsert({
+          user_id: userId,
+          date: today,
+          daily_count: 1,
+          monthly_count: 1,
+          tokens_used: tokensUsed,
+          api_calls: 1,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,date',
+        });
+      }
     } catch (error) {
       logger.error('[UserService] Error recording usage:', error);
     }

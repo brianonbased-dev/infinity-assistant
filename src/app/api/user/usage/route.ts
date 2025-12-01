@@ -34,43 +34,36 @@ export async function GET(request: NextRequest) {
 
     // Calculate date boundaries
     const today = new Date().toISOString().split('T')[0];
-    const firstOfMonth = new Date();
-    firstOfMonth.setDate(1);
-    firstOfMonth.setHours(0, 0, 0, 0);
 
-    // Execute all queries in parallel to reduce latency (fixes N+1 pattern)
-    const [subscriptionResult, todayUsageResult, monthUsageResult] = await Promise.all([
-      // Get user's tier
+    // Execute queries in parallel to reduce latency
+    const [subscriptionResult, usageResult] = await Promise.all([
+      // Get user's tier from subscription
       supabase
         .from(TABLES.SUBSCRIPTIONS)
         .select('tier')
         .eq('user_id', effectiveUserId)
         .single(),
 
-      // Get today's usage count
+      // Get today's usage record (contains daily_count and monthly_count)
       supabase
         .from(TABLES.USAGE)
-        .select('*', { count: 'exact', head: true })
+        .select('daily_count, monthly_count, tokens_used')
         .eq('user_id', effectiveUserId)
-        .gte('created_at', `${today}T00:00:00Z`),
-
-      // Get this month's usage count
-      supabase
-        .from(TABLES.USAGE)
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', effectiveUserId)
-        .gte('created_at', firstOfMonth.toISOString()),
+        .eq('date', today)
+        .single(),
     ]);
 
     const tier = subscriptionResult.data?.tier || 'free';
     const limits = getUsageLimits(tier);
-    const todayCount = todayUsageResult.count || 0;
-    const monthCount = monthUsageResult.count || 0;
+    const todayCount = usageResult.data?.daily_count || 0;
+    const monthCount = usageResult.data?.monthly_count || 0;
+    const tokensUsed = usageResult.data?.tokens_used || 0;
 
     return NextResponse.json({
       usage: {
         today: todayCount,
         thisMonth: monthCount,
+        tokensUsed,
       },
       limits,
       tier,
