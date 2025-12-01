@@ -246,9 +246,12 @@ async function readLocalMemory(userId: string): Promise<UserLocalMemory | null> 
 
   // Server environment - use file system
   try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const os = await import('os');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const os = require('os');
 
     const memoryDir = path.join(os.homedir(), '.infinity-assistant', 'memories', userId);
     const memoryFile = path.join(memoryDir, 'memory.json');
@@ -281,9 +284,12 @@ async function writeLocalMemory(userId: string, memory: UserLocalMemory): Promis
 
   // Server environment
   try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const os = await import('os');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const os = require('os');
 
     const memoryDir = path.join(os.homedir(), '.infinity-assistant', 'memories', userId);
     const memoryFile = path.join(memoryDir, 'memory.json');

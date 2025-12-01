@@ -25,8 +25,9 @@
  */
 
 import { detectLanguage, type SupportedLanguage } from './BilingualService';
-import * as fs from 'fs';
-import * as path from 'path';
+// fs import moved to dynamic require for client compatibility
+// path import moved to dynamic require for client compatibility
+const isServer = typeof window === 'undefined';
 
 // ============================================================================
 // FILE-BASED STORAGE (uaa2 compression style)
@@ -48,32 +49,28 @@ interface StoredSpeakerData {
  * Get storage path for a user's speaker data
  */
 function getSpeakerStoragePath(userId: string): string {
-  return path.join(STORAGE_BASE, SPEAKERS_DIR, userId, SPEAKERS_FILE);
+  return [STORAGE_BASE, SPEAKERS_DIR, userId, SPEAKERS_FILE].join("/");
 }
 
 /**
  * Get storage path for family data
  */
 function getFamilyStoragePath(userId: string): string {
-  return path.join(STORAGE_BASE, SPEAKERS_DIR, userId, FAMILY_FILE);
+  return [STORAGE_BASE, SPEAKERS_DIR, userId, FAMILY_FILE].join("/");
 }
 
 /**
- * Ensure directory exists
- */
-function ensureDir(filePath: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-/**
- * Load speaker data from file
+ * Load speaker data from file (server-only)
+ * Returns null on client side
  */
 function loadSpeakerData(userId: string): StoredSpeakerData | null {
+  if (!isServer) return null;
   try {
-    const filePath = getSpeakerStoragePath(userId);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path');
+    const filePath = path.join(STORAGE_BASE, SPEAKERS_DIR, userId, SPEAKERS_FILE);
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8');
       return JSON.parse(data);
@@ -85,12 +82,21 @@ function loadSpeakerData(userId: string): StoredSpeakerData | null {
 }
 
 /**
- * Save speaker data to file
+ * Save speaker data to file (server-only)
+ * No-op on client side
  */
 function saveSpeakerData(userId: string, data: StoredSpeakerData): void {
+  if (!isServer) return;
   try {
-    const filePath = getSpeakerStoragePath(userId);
-    ensureDir(filePath);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path');
+    const filePath = path.join(STORAGE_BASE, SPEAKERS_DIR, userId, SPEAKERS_FILE);
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
     console.error('[AdaptiveCommunication] Error saving speaker data:', error);

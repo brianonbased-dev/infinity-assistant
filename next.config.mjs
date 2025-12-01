@@ -5,13 +5,10 @@ const nextConfig = {
     // Temporarily disabled for Cyber Monday launch - vehicle services deferred to v2
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Temporarily disabled for Cyber Monday launch - vehicle services deferred to v2
-    ignoreDuringBuilds: true,
-  },
   compress: true,
   poweredByHeader: false,
+  // Turbopack config for Next.js 16 (empty config silences webpack warning)
+  turbopack: {},
 };
 
 export default nextConfig;
-
