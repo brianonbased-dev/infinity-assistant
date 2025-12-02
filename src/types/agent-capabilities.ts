@@ -212,6 +212,36 @@ export const RATE_LIMITS = {
     modes_allowed: ['search', 'assist', 'build'] as const,
     research_depth: 'deep' as const,
   },
+  // Aliases for subscription tiers (pro, business, enterprise)
+  PRO: {
+    requests_per_day: 100,
+    requests_per_hour: 50,
+    concurrent_conversations: 3,
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'deep' as const,
+  },
+  BUSINESS: {
+    requests_per_day: -1, // unlimited
+    requests_per_hour: 200,
+    concurrent_conversations: 10,
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
+  ENTERPRISE: {
+    requests_per_day: -1, // unlimited
+    requests_per_hour: -1, // unlimited
+    concurrent_conversations: -1, // unlimited
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
+  // Team tier alias
+  TEAM: {
+    requests_per_day: -1, // unlimited
+    requests_per_hour: 200,
+    concurrent_conversations: 10,
+    modes_allowed: ['search', 'assist', 'build'] as const,
+    research_depth: 'comprehensive' as const,
+  },
 } as const;
 
 /**
