@@ -376,8 +376,9 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         {
           error: 'Rate limit exceeded',
           message:
-            'You have reached your daily query limit. Please upgrade to Pro for unlimited access.',
+            'You\'ve been busy today! You\'ve reached your daily conversation limit. Come back tomorrow or upgrade to Pro for unlimited conversations.',
           rateLimit: rateLimitCheck,
+          suggestion: 'Upgrade to Pro for unlimited access to the assistant',
         },
         { status: 429 }
       );

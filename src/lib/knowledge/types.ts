@@ -241,6 +241,14 @@ export type KnowledgeDomain =
   | 'libraries'
   | 'idiom-learning'
   | 'ways-of-thinking'
+  | 'web-development'
+  | 'productivity'
+  | 'business'
+  | 'finance'
+  | 'health'
+  | 'career'
+  | 'learning'
+  | 'communication'
   | 'general';
 
 /**

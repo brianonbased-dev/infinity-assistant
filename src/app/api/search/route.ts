@@ -134,19 +134,61 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       finalUserTier
     );
 
-    // Query knowledge base through Master Portal
-    const masterPortal = getMasterPortalClient();
-    const knowledgeResult = await masterPortal.searchKnowledge(query.trim(), {
-      type,
-      limit: Math.min(limit, 50),
-      domain,
-      tags,
-    });
+    // Query knowledge base - try Master Portal first, fallback to local
+    let wisdomItems: KnowledgeItem[] = [];
+    let patternItems: KnowledgeItem[] = [];
+    let gotchaItems: KnowledgeItem[] = [];
+    let searchSource = 'knowledge-base';
 
-    // Format results for public API with proper typing
-    const wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
-    const patternItems = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
-    const gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
+    try {
+      const masterPortal = getMasterPortalClient();
+      const knowledgeResult = await masterPortal.searchKnowledge(query.trim(), {
+        type,
+        limit: Math.min(limit, 50),
+        domain,
+        tags,
+      });
+      wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
+      patternItems = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
+      gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
+    } catch (masterPortalError) {
+      // Fallback to local embedded knowledge
+      logger.warn('[Search API] Master Portal failed, using local knowledge:', masterPortalError);
+      searchSource = 'embedded-knowledge';
+
+      const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
+      const knowledgeService = getAssistantKnowledgeService();
+      const localResult = await knowledgeService.searchKnowledge(query.trim(), {
+        maxWisdom: Math.min(limit, 10),
+        maxPatterns: Math.min(limit, 10),
+        maxGotchas: Math.min(limit, 5),
+      });
+
+      // Convert local format to KnowledgeItem format
+      wisdomItems = localResult.wisdom.map((w) => ({
+        id: w.id,
+        content: w.wisdom,
+        score: w.score || 0.5,
+        source: 'embedded',
+        metadata: { title: w.title, application: w.application, domain: w.domain },
+      })) as KnowledgeItem[];
+
+      patternItems = localResult.patterns.map((p) => ({
+        id: p.id,
+        content: p.pattern,
+        score: p.score || 0.5,
+        source: 'embedded',
+        metadata: { title: p.name, when: p.when, result: p.result, domain: p.domain },
+      })) as KnowledgeItem[];
+
+      gotchaItems = localResult.gotchas.map((g) => ({
+        id: g.id,
+        content: `${g.symptom} → ${g.fix}`,
+        score: g.score || 0.5,
+        source: 'embedded',
+        metadata: { title: g.title, cause: g.cause, prevention: g.prevention, domain: g.domain },
+      })) as KnowledgeItem[];
+    }
 
     const formattedResults: SearchResponse['results'] = {
       wisdom: wisdomItems.slice(0, limit).map(formatWisdomItem),
@@ -197,14 +239,14 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       query: query.trim(),
       results: formattedResults,
       counts: {
-        total: knowledgeResult.counts?.total || 0,
-        wisdom: knowledgeResult.counts?.wisdom || 0,
-        patterns: knowledgeResult.counts?.patterns || 0,
-        gotchas: knowledgeResult.counts?.gotchas || 0,
+        total: totalResults,
+        wisdom: wisdomItems.length,
+        patterns: patternItems.length,
+        gotchas: gotchaItems.length,
       },
       metadata: {
         searchTimeMs: searchTime,
-        sources: gapResponse ? ['knowledge-base', 'quick-research'] : ['knowledge-base'],
+        sources: gapResponse ? [searchSource, 'quick-research'] : [searchSource],
       },
       // Include gap response data if available
       ...(gapResponse && {
@@ -250,64 +292,112 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
       return NextResponse.json({ success: true, suggestions: [] }, { status: 200 });
     }
 
-    // Query knowledge base through Master Portal
-    const masterPortal = getMasterPortalClient();
-    const knowledgeResult = await masterPortal.searchKnowledge(trimmedQuery, {
-      limit: Math.min(limit * 2, 30),
-      type: 'all',
-    });
-
-    // Extract suggestions from results with proper typing
+    // Query knowledge base - try Master Portal first, fallback to local
     const suggestions: SearchSuggestion[] = [];
 
-    // Add pattern names
-    const patterns = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
-    patterns.slice(0, limit).forEach((pattern: KnowledgeItem) => {
-      const title = pattern.metadata?.title || pattern.metadata?.pattern_id || pattern.content?.substring(0, 50);
-      if (title && !suggestions.find((s) => s.text === title)) {
-        suggestions.push({
-          text: title,
-          type: 'pattern',
-          score: pattern.score,
-          metadata: {
-            domain: pattern.metadata?.domain,
-            pattern_id: pattern.metadata?.pattern_id,
-          },
-        });
-      }
-    });
+    try {
+      const masterPortal = getMasterPortalClient();
+      const knowledgeResult = await masterPortal.searchKnowledge(trimmedQuery, {
+        limit: Math.min(limit * 2, 30),
+        type: 'all',
+      });
 
-    // Add wisdom titles
-    const wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
-    wisdomItems.slice(0, limit).forEach((wisdom: KnowledgeItem) => {
-      const title = wisdom.metadata?.title || wisdom.content?.substring(0, 50);
-      if (title && !suggestions.find((s) => s.text === title)) {
-        suggestions.push({
-          text: title,
-          type: 'wisdom',
-          score: wisdom.score,
-          metadata: {
-            wisdom_id: wisdom.metadata?.wisdom_id,
-          },
-        });
-      }
-    });
+      // Add pattern names
+      const patterns = (knowledgeResult.grouped?.patterns || []) as KnowledgeItem[];
+      patterns.slice(0, limit).forEach((pattern: KnowledgeItem) => {
+        const title = pattern.metadata?.title || pattern.metadata?.pattern_id || pattern.content?.substring(0, 50);
+        if (title && !suggestions.find((s) => s.text === title)) {
+          suggestions.push({
+            text: title,
+            type: 'pattern',
+            score: pattern.score,
+            metadata: {
+              domain: pattern.metadata?.domain,
+              pattern_id: pattern.metadata?.pattern_id,
+            },
+          });
+        }
+      });
 
-    // Add gotcha titles
-    const gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
-    gotchaItems.slice(0, limit).forEach((gotcha: KnowledgeItem) => {
-      const title = gotcha.metadata?.title || gotcha.content?.substring(0, 50);
-      if (title && !suggestions.find((s) => s.text === title)) {
-        suggestions.push({
-          text: title,
-          type: 'gotcha',
-          score: gotcha.score,
-          metadata: {
-            gotcha_id: gotcha.metadata?.gotcha_id,
-          },
-        });
-      }
-    });
+      // Add wisdom titles
+      const wisdomItems = (knowledgeResult.grouped?.wisdom || []) as KnowledgeItem[];
+      wisdomItems.slice(0, limit).forEach((wisdom: KnowledgeItem) => {
+        const title = wisdom.metadata?.title || wisdom.content?.substring(0, 50);
+        if (title && !suggestions.find((s) => s.text === title)) {
+          suggestions.push({
+            text: title,
+            type: 'wisdom',
+            score: wisdom.score,
+            metadata: {
+              wisdom_id: wisdom.metadata?.wisdom_id,
+            },
+          });
+        }
+      });
+
+      // Add gotcha titles
+      const gotchaItems = (knowledgeResult.grouped?.gotchas || []) as KnowledgeItem[];
+      gotchaItems.slice(0, limit).forEach((gotcha: KnowledgeItem) => {
+        const title = gotcha.metadata?.title || gotcha.content?.substring(0, 50);
+        if (title && !suggestions.find((s) => s.text === title)) {
+          suggestions.push({
+            text: title,
+            type: 'gotcha',
+            score: gotcha.score,
+            metadata: {
+              gotcha_id: gotcha.metadata?.gotcha_id,
+            },
+          });
+        }
+      });
+    } catch (masterPortalError) {
+      // Fallback to local embedded knowledge
+      logger.warn('[Search Suggestions] Master Portal failed, using local knowledge:', masterPortalError);
+
+      const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
+      const knowledgeService = getAssistantKnowledgeService();
+      const localResult = await knowledgeService.searchKnowledge(trimmedQuery, {
+        maxWisdom: limit,
+        maxPatterns: limit,
+        maxGotchas: limit,
+      });
+
+      // Add pattern suggestions from local
+      localResult.patterns.forEach((p) => {
+        if (!suggestions.find((s) => s.text === p.name)) {
+          suggestions.push({
+            text: p.name,
+            type: 'pattern',
+            score: p.score || 0.5,
+            metadata: { domain: p.domain, pattern_id: p.id },
+          });
+        }
+      });
+
+      // Add wisdom suggestions from local
+      localResult.wisdom.forEach((w) => {
+        if (!suggestions.find((s) => s.text === w.title)) {
+          suggestions.push({
+            text: w.title,
+            type: 'wisdom',
+            score: w.score || 0.5,
+            metadata: { wisdom_id: w.id },
+          });
+        }
+      });
+
+      // Add gotcha suggestions from local
+      localResult.gotchas.forEach((g) => {
+        if (!suggestions.find((s) => s.text === g.title)) {
+          suggestions.push({
+            text: g.title,
+            type: 'gotcha',
+            score: g.score || 0.5,
+            metadata: { gotcha_id: g.id },
+          });
+        }
+      });
+    }
 
     // Sort by score and limit
     const sortedSuggestions = suggestions

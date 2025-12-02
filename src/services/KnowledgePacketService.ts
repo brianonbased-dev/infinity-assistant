@@ -95,6 +95,13 @@ class ExpertiseRouter {
       ux_design: ['ux', 'ui', 'design', 'accessibility', 'responsive', 'animation', 'transition', 'user experience'],
       integrations: ['webhook', 'integration', 'third-party', 'api key', 'oauth', 'sdk', 'connect'],
       real_time: ['websocket', 'realtime', 'real-time', 'live', 'socket', 'sse', 'push', 'notification', 'presence'],
+      productivity: ['productivity', 'time management', 'focus', 'habits', 'efficiency', 'procrastination', 'pomodoro', 'todo', 'organize', 'prioritize'],
+      business: ['business', 'startup', 'entrepreneur', 'revenue', 'customer', 'marketing', 'sales', 'pricing', 'growth', 'mvp', 'market'],
+      finance: ['finance', 'money', 'invest', 'budget', 'saving', 'income', 'wealth', 'compound', 'portfolio', 'retirement'],
+      health: ['health', 'fitness', 'exercise', 'sleep', 'nutrition', 'diet', 'wellness', 'stress', 'mental health', 'habit'],
+      career: ['career', 'job', 'promotion', 'salary', 'negotiate', 'interview', 'resume', 'skill', 'networking', 'linkedin'],
+      learning: ['learn', 'study', 'skill', 'course', 'practice', 'knowledge', 'education', 'tutorial', 'master', 'improve'],
+      communication: ['communication', 'speak', 'write', 'present', 'listen', 'feedback', 'conflict', 'relationship', 'persuade', 'influence'],
       general: ['code', 'function', 'class', 'variable', 'loop', 'algorithm', 'data structure', 'refactor'],
     };
 

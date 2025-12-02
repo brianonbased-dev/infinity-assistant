@@ -154,15 +154,23 @@ export const FULL_MODE_ONLY_CAPABILITIES: AgentCapability[] = [
 
 /**
  * Rate limits per tier
+ *
+ * PHILOSOPHY: Conversation is ALWAYS available - it's our way in the door.
+ * Limits are on DEPTH of research, not access to the assistant.
+ *
+ * FREE: Unlimited basic conversation + 1 deep research/day
+ * PRO: Unlimited conversation + unlimited deep research
+ * BUILDER+: Everything unlimited
  */
 export const RATE_LIMITS = {
-  // Free tier: Search only
+  // Free tier: Conversation always available, limited deep research
   FREE: {
-    requests_per_day: 20,
-    requests_per_hour: 10,
+    requests_per_day: 50,              // Generous daily limit for conversations
+    requests_per_hour: 20,             // Allow natural conversation flow
     concurrent_conversations: 1,
-    modes_allowed: ['search'] as const, // Only search mode
-    research_depth: 'basic' as const,   // Basic search, no deep research
+    modes_allowed: ['search', 'assist'] as const, // Conversation ALWAYS available
+    research_depth: 'basic' as const,   // 1 deep research/day tracked separately
+    deep_research_per_day: 1,           // 1 free deep research per day
   },
   // Assistant Pro: Full search + assist
   ASSISTANT_PRO: {

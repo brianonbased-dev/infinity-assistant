@@ -82,6 +82,13 @@ export type KnowledgeDomain =
   | 'ux_design'
   | 'integrations'
   | 'real_time'
+  | 'productivity'
+  | 'business'
+  | 'finance'
+  | 'health'
+  | 'career'
+  | 'learning'
+  | 'communication'
   | 'general';
 
 export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert' | 'all';
@@ -692,6 +699,69 @@ export const EXPERT_DOMAINS: Record<KnowledgeDomain, ExpertDomainInfo> = {
     keyPatterns: ['presence', 'conflict_resolution', 'optimistic_updates', 'reconnection'],
     commonGotchas: ['connection_management', 'message_ordering', 'scalability', 'offline_sync'],
     researchAreas: ['crdts', 'operational_transformation', 'edge_computing'],
+  },
+  productivity: {
+    domain: 'productivity',
+    name: 'Productivity & Time Management',
+    description: 'Personal effectiveness, habits, and focus',
+    subDomains: ['time_blocking', 'deep_work', 'habits', 'goal_setting', 'task_management'],
+    keyPatterns: ['pomodoro', '80_20_rule', 'time_boxing', 'batching', 'single_tasking'],
+    commonGotchas: ['multitasking', 'perfectionism', 'procrastination', 'burnout', 'busy_vs_productive'],
+    researchAreas: ['flow_state', 'cognitive_load', 'energy_management'],
+  },
+  business: {
+    domain: 'business',
+    name: 'Business & Entrepreneurship',
+    description: 'Starting, growing, and running a business',
+    subDomains: ['startups', 'marketing', 'sales', 'pricing', 'growth', 'management'],
+    keyPatterns: ['mvp', 'product_market_fit', 'value_proposition', 'customer_discovery', 'lean_startup'],
+    commonGotchas: ['building_without_validation', 'pricing_too_low', 'ignoring_unit_economics', 'premature_scaling'],
+    researchAreas: ['business_models', 'market_research', 'competitive_analysis'],
+  },
+  finance: {
+    domain: 'finance',
+    name: 'Personal Finance & Investing',
+    description: 'Money management, investing, and wealth building',
+    subDomains: ['budgeting', 'investing', 'retirement', 'taxes', 'debt_management'],
+    keyPatterns: ['pay_yourself_first', 'dollar_cost_averaging', 'compound_interest', 'diversification'],
+    commonGotchas: ['lifestyle_creep', 'timing_the_market', 'single_income_dependency', 'emotional_investing'],
+    researchAreas: ['portfolio_theory', 'tax_optimization', 'passive_income'],
+  },
+  health: {
+    domain: 'health',
+    name: 'Health & Wellness',
+    description: 'Physical and mental well-being',
+    subDomains: ['fitness', 'nutrition', 'sleep', 'mental_health', 'stress_management'],
+    keyPatterns: ['progressive_overload', 'sleep_hygiene', 'mindfulness', 'habit_stacking'],
+    commonGotchas: ['all_or_nothing', 'ignoring_sleep', 'diet_extremism', 'overtraining'],
+    researchAreas: ['longevity', 'behavioral_change', 'evidence_based_fitness'],
+  },
+  career: {
+    domain: 'career',
+    name: 'Career Development',
+    description: 'Professional growth, job search, and advancement',
+    subDomains: ['job_search', 'networking', 'negotiation', 'skills_development', 'leadership'],
+    keyPatterns: ['skill_stacking', 't_shaped_skills', 'personal_branding', 'mentorship'],
+    commonGotchas: ['waiting_to_be_noticed', 'accepting_first_offer', 'specializing_too_narrow', 'ignoring_networking'],
+    researchAreas: ['career_capital', 'job_crafting', 'portfolio_career'],
+  },
+  learning: {
+    domain: 'learning',
+    name: 'Learning & Skill Acquisition',
+    description: 'How to learn effectively and master new skills',
+    subDomains: ['deliberate_practice', 'memory', 'reading', 'note_taking', 'teaching'],
+    keyPatterns: ['spaced_repetition', 'active_recall', 'interleaving', 'feynman_technique'],
+    commonGotchas: ['passive_consumption', 'shiny_object_syndrome', 'tutorial_hell', 'cramming'],
+    researchAreas: ['learning_science', 'metacognition', 'expertise_development'],
+  },
+  communication: {
+    domain: 'communication',
+    name: 'Communication & Relationships',
+    description: 'Effective communication and interpersonal skills',
+    subDomains: ['listening', 'writing', 'presenting', 'negotiation', 'conflict_resolution'],
+    keyPatterns: ['active_listening', 'nonviolent_communication', 'radical_candor', 'storytelling'],
+    commonGotchas: ['listening_to_reply', 'avoiding_difficult_conversations', 'unclear_communication', 'assumptions'],
+    researchAreas: ['persuasion', 'emotional_intelligence', 'team_dynamics'],
   },
   general: {
     domain: 'general',

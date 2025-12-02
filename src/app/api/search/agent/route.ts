@@ -115,6 +115,70 @@ const FREEMIUM_PATTERNS = {
   ],
 };
 
+// Query intent detection - determines if query needs research vs simple search
+// "gorillas" -> lookup (simple facts)
+// "ways to make money today" -> research (needs synthesis)
+const RESEARCH_INTENT_PATTERNS = [
+  // Actionable/practical queries that need synthesis
+  /\b(how (to|can|do)|ways? to|methods? (to|for)|steps? to)\b/i,
+  /\b(make money|earn|income|start (a )?business|side hustle)\b/i,
+  /\b(best|top|recommended|most effective|proven)\b/i,
+  /\b(strategy|strategies|approach|plan|roadmap)\b/i,
+  /\b(improve|increase|boost|optimize|maximize)\b/i,
+  /\b(solve|fix|resolve|overcome|deal with)\b/i,
+  /\b(should i|would it|is it (worth|good|better))\b/i,
+  /\b(compare|difference between|pros and cons)\b/i,
+  /\b(learn|master|become|get (started|better))\b/i,
+  // Questions that need synthesized answers
+  /^(what|why|how|when|where|which|who) .{30,}/i, // Long questions (30+ chars after question word)
+  // Life/career/business advice
+  /\b(career|job|interview|resume|salary|negotiate)\b/i,
+  /\b(invest|investing|stock|crypto|real estate)\b/i,
+  /\b(health|fitness|diet|workout|weight loss)\b/i,
+  /\b(relationship|dating|marriage|parenting)\b/i,
+  /\b(productivity|motivation|habits|goals)\b/i,
+];
+
+// Simple lookup queries - just need facts from knowledge base
+const LOOKUP_INTENT_PATTERNS = [
+  /^(what is|define|meaning of|definition of)\s+\w+$/i, // Single word definition
+  /^(who is|who was)\s+/i, // Person lookup
+  /^(when (was|did|is))\s+/i, // Date lookup
+  /^(where is|location of)\s+/i, // Location lookup
+  /\b(facts? about|information (about|on))\b/i,
+  /^tell me about [a-z]+$/i, // Short "tell me about X"
+];
+
+/**
+ * Detect if query needs research (LLM synthesis) vs simple search (knowledge lookup)
+ * Returns: 'research' | 'lookup'
+ */
+function detectQueryIntent(query: string): 'research' | 'lookup' {
+  const trimmed = query.trim();
+
+  // Check research patterns first (higher priority)
+  for (const pattern of RESEARCH_INTENT_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return 'research';
+    }
+  }
+
+  // Check lookup patterns
+  for (const pattern of LOOKUP_INTENT_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return 'lookup';
+    }
+  }
+
+  // Default: queries with question marks and longer than 40 chars are likely research
+  if (trimmed.includes('?') && trimmed.length > 40) {
+    return 'research';
+  }
+
+  // Default to lookup for short queries, research for longer ones
+  return trimmed.length > 35 ? 'research' : 'lookup';
+}
+
 // In-memory freemium usage tracking
 const freemiumUsage = new Map<string, {
   assistUsed: number;
@@ -124,9 +188,9 @@ const freemiumUsage = new Map<string, {
 }>();
 
 /**
- * Detect freemium offer based on query pattern
+ * Detect freemium offer based on query pattern and intent
  */
-function detectFreemiumOffer(query: string, userId: string): FreemiumOffer | null {
+function detectFreemiumOffer(query: string, userId: string, queryIntent: 'research' | 'lookup'): FreemiumOffer | null {
   const today = new Date().toISOString().split('T')[0];
   let usage = freemiumUsage.get(userId);
 
@@ -140,20 +204,16 @@ function detectFreemiumOffer(query: string, userId: string): FreemiumOffer | nul
     freemiumUsage.set(userId, usage);
   }
 
-  // Check assist patterns
-  if (usage.assistUsed < 3) {
-    for (const pattern of FREEMIUM_PATTERNS.assist) {
-      if (pattern.test(query)) {
-        return {
-          type: 'assist',
-          title: 'Try AI Assistant',
-          description: 'Get a personalized AI answer with context and explanations',
-          ctaText: `Get AI Answer (${3 - usage.assistUsed} free today)`,
-          remainingToday: 3 - usage.assistUsed,
-          maxPerDay: 3,
-        };
-      }
-    }
+  // For research intent queries, offer deep research if available
+  if (queryIntent === 'research' && usage.deepResearchUsed < 1) {
+    return {
+      type: 'deep_research',
+      title: 'Get AI Research',
+      description: 'The assistant will research this and provide a comprehensive answer',
+      ctaText: `Get AI Answer (${1 - usage.deepResearchUsed} free research today)`,
+      remainingToday: 1 - usage.deepResearchUsed,
+      maxPerDay: 1,
+    };
   }
 
   // Check build patterns
@@ -172,23 +232,65 @@ function detectFreemiumOffer(query: string, userId: string): FreemiumOffer | nul
     }
   }
 
-  // Check deep research patterns
-  if (usage.deepResearchUsed < 1) {
-    for (const pattern of FREEMIUM_PATTERNS.deep_research) {
+  // Check assist patterns for general questions
+  if (usage.assistUsed < 3) {
+    for (const pattern of FREEMIUM_PATTERNS.assist) {
       if (pattern.test(query)) {
         return {
-          type: 'deep_research',
-          title: 'Try Deep Research',
-          description: 'Get comprehensive analysis with synthesis',
-          ctaText: `Deep Research (${1 - usage.deepResearchUsed} free today)`,
-          remainingToday: 1 - usage.deepResearchUsed,
-          maxPerDay: 1,
+          type: 'assist',
+          title: 'Get AI Answer',
+          description: 'Get a personalized answer with context and explanations',
+          ctaText: `Get AI Answer (${3 - usage.assistUsed} free today)`,
+          remainingToday: 3 - usage.assistUsed,
+          maxPerDay: 3,
         };
       }
     }
   }
 
   return null;
+}
+
+/**
+ * Auto-determine search depth based on query intent and user tier
+ * - Lookup queries: basic search (knowledge base only)
+ * - Research queries: LLM synthesis required
+ * - Complex queries: deep research with multiple sources
+ */
+function autoDetectSearchDepth(
+  query: string,
+  userTier: UserTier,
+  userId: string
+): { protocol: SearchProtocol; needsLLM: boolean; reason: string } {
+  const intent = detectQueryIntent(query);
+  const today = new Date().toISOString().split('T')[0];
+  const usage = freemiumUsage.get(userId);
+  const researchUsedToday = usage?.lastReset === today ? usage.deepResearchUsed : 0;
+
+  // Free users:
+  // - Lookup queries: basic search (quick protocol)
+  // - Research queries: 1 free research/day, then suggest upgrade
+  if (userTier === 'free') {
+    if (intent === 'lookup') {
+      return { protocol: 'quick', needsLLM: false, reason: 'Simple lookup - knowledge base search' };
+    }
+    // Research query - check if they have free research available
+    if (researchUsedToday < 1) {
+      return { protocol: 'standard', needsLLM: true, reason: 'Free research - AI synthesis available' };
+    }
+    return { protocol: 'quick', needsLLM: false, reason: 'Research limit reached - upgrade for more' };
+  }
+
+  // Pro users: full research capabilities
+  if (['assistant_pro', 'pro'].includes(userTier as string)) {
+    if (intent === 'lookup') {
+      return { protocol: 'standard', needsLLM: true, reason: 'Pro lookup with AI enhancement' };
+    }
+    return { protocol: 'deep', needsLLM: true, reason: 'Deep research with synthesis' };
+  }
+
+  // Builder+ users: comprehensive research
+  return { protocol: 'comprehensive', needsLLM: true, reason: 'Full comprehensive research' };
 }
 
 /**
@@ -289,51 +391,51 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       logger.warn('[Agent Search API] uaa2 service error, using fallback:', fetchError);
     }
 
-    // Fallback: Use local Master Portal search
-    const { getMasterPortalClient } = await import('@/services/MasterPortalClient');
-    const masterPortal = getMasterPortalClient();
+    // Fallback: Use local AssistantKnowledgeService (embedded knowledge - always works)
+    const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
+    const knowledgeService = getAssistantKnowledgeService();
 
-    const knowledgeResult = await masterPortal.searchKnowledge(query.trim(), {
-      type: 'all',
-      limit: Math.min(limit, 50),
-      domain,
+    const searchResult = await knowledgeService.searchKnowledge(query.trim(), {
+      maxWisdom: Math.min(limit, 10),
+      maxPatterns: Math.min(limit, 10),
+      maxGotchas: Math.min(limit, 5),
     });
 
     // Convert to agent search format
-    const wisdomItems = (knowledgeResult.grouped?.wisdom || []).map((item: Record<string, unknown>) => ({
-      id: item.id as string,
+    const wisdomItems = searchResult.wisdom.map((item) => ({
+      id: item.id,
       type: 'wisdom' as const,
-      content: item.content as string,
-      title: (item.metadata as Record<string, unknown>)?.title as string,
-      domain: (item.metadata as Record<string, unknown>)?.domain as string,
-      score: item.score as number,
-      confidence: 0.8,
-      source: item.source as string,
-      metadata: item.metadata as Record<string, unknown>,
+      content: item.wisdom,
+      title: item.title,
+      domain: item.domain || 'general',
+      score: item.score || 0.5,
+      confidence: 0.9,
+      source: 'embedded-knowledge',
+      metadata: { application: item.application },
     }));
 
-    const patternItems = (knowledgeResult.grouped?.patterns || []).map((item: Record<string, unknown>) => ({
-      id: item.id as string,
+    const patternItems = searchResult.patterns.map((item) => ({
+      id: item.id,
       type: 'pattern' as const,
-      content: item.content as string,
-      title: (item.metadata as Record<string, unknown>)?.title as string,
-      domain: (item.metadata as Record<string, unknown>)?.domain as string,
-      score: item.score as number,
-      confidence: 0.8,
-      source: item.source as string,
-      metadata: item.metadata as Record<string, unknown>,
+      content: item.pattern,
+      title: item.name,
+      domain: item.domain || 'general',
+      score: item.score || 0.5,
+      confidence: 0.9,
+      source: 'embedded-knowledge',
+      metadata: { when: item.when, result: item.result },
     }));
 
-    const gotchaItems = (knowledgeResult.grouped?.gotchas || []).map((item: Record<string, unknown>) => ({
-      id: item.id as string,
+    const gotchaItems = searchResult.gotchas.map((item) => ({
+      id: item.id,
       type: 'gotcha' as const,
-      content: item.content as string,
-      title: (item.metadata as Record<string, unknown>)?.title as string,
-      domain: (item.metadata as Record<string, unknown>)?.domain as string,
-      score: item.score as number,
-      confidence: 0.8,
-      source: item.source as string,
-      metadata: item.metadata as Record<string, unknown>,
+      content: `${item.symptom} → ${item.fix}`,
+      title: item.title,
+      domain: item.domain || 'general',
+      score: item.score || 0.5,
+      confidence: 0.9,
+      source: 'embedded-knowledge',
+      metadata: { cause: item.cause, prevention: item.prevention },
     }));
 
     const totalResults = wisdomItems.length + patternItems.length + gotchaItems.length;
@@ -366,10 +468,11 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       }
     }
 
-    // Detect freemium offer for free tier
+    // Detect query intent and freemium offer for free tier
+    const queryIntent = detectQueryIntent(query.trim());
     let freemiumOffer: FreemiumOffer | null = null;
     if (userTier === 'free' && includeFreemium) {
-      freemiumOffer = detectFreemiumOffer(query.trim(), userId);
+      freemiumOffer = detectFreemiumOffer(query.trim(), userId, queryIntent);
     }
 
     const response: AgentSearchResponse = {
@@ -467,35 +570,64 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
       logger.warn('[Agent Search API] uaa2 GET unavailable:', fetchError);
     }
 
-    // Fallback to local search
-    const { getMasterPortalClient } = await import('@/services/MasterPortalClient');
-    const masterPortal = getMasterPortalClient();
+    // Fallback to local embedded knowledge (always works)
+    const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
+    const knowledgeService = getAssistantKnowledgeService();
 
-    const knowledgeResult = await masterPortal.searchKnowledge(trimmedQuery, {
-      type: 'all',
-      limit: Math.min(limit, 30),
+    const searchResult = await knowledgeService.searchKnowledge(trimmedQuery, {
+      maxWisdom: Math.min(limit, 5),
+      maxPatterns: Math.min(limit, 5),
+      maxGotchas: Math.min(limit, 3),
     });
 
     const searchTime = Date.now() - startTime;
+
+    // Convert to consistent format
+    const wisdom = searchResult.wisdom.map((w) => ({
+      id: w.id,
+      content: w.wisdom,
+      title: w.title,
+      domain: w.domain || 'general',
+      score: w.score || 0.5,
+      metadata: { application: w.application },
+    }));
+
+    const patterns = searchResult.patterns.map((p) => ({
+      id: p.id,
+      content: p.pattern,
+      title: p.name,
+      domain: p.domain || 'general',
+      score: p.score || 0.5,
+      metadata: { when: p.when, result: p.result },
+    }));
+
+    const gotchas = searchResult.gotchas.map((g) => ({
+      id: g.id,
+      content: `${g.symptom} → ${g.fix}`,
+      title: g.title,
+      domain: g.domain || 'general',
+      score: g.score || 0.5,
+      metadata: { cause: g.cause, prevention: g.prevention },
+    }));
 
     return NextResponse.json({
       success: true,
       query: trimmedQuery,
       protocol,
       results: {
-        wisdom: knowledgeResult.grouped?.wisdom || [],
-        patterns: knowledgeResult.grouped?.patterns || [],
-        gotchas: knowledgeResult.grouped?.gotchas || [],
+        wisdom,
+        patterns,
+        gotchas,
       },
       counts: {
-        total: knowledgeResult.counts?.total || 0,
-        wisdom: knowledgeResult.counts?.wisdom || 0,
-        patterns: knowledgeResult.counts?.patterns || 0,
-        gotchas: knowledgeResult.counts?.gotchas || 0,
+        total: searchResult.totalResults,
+        wisdom: wisdom.length,
+        patterns: patterns.length,
+        gotchas: gotchas.length,
       },
       metadata: {
         searchTimeMs: searchTime,
-        sources: ['knowledge-base'],
+        sources: ['embedded-knowledge'],
         cacheHit: false,
         protocolUsed: protocol,
       },

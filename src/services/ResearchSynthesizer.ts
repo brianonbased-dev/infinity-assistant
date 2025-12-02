@@ -694,7 +694,7 @@ class ResearchSynthesizerImpl {
     examples: string[];
     codeTemplate?: string;
   } {
-    const adaptations: Record<string, Record<KnowledgeDomain, { adaptation: string; examples: string[]; code?: string }>> = {
+    const adaptations: Record<string, Partial<Record<KnowledgeDomain, { adaptation: string; examples: string[]; code?: string }>>> = {
       'state_machine': {
         web_development: {
           adaptation: 'Use XState or Zustand with finite states for complex UI flows',
