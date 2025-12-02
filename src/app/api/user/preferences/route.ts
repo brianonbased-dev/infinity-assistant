@@ -9,15 +9,60 @@ import { getCurrentUser } from '@/lib/auth';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 
+/**
+ * Unified UserPreferences interface
+ * Supports both companion (AssistantOnboarding) and builder (BuilderOnboarding) modes
+ */
 interface UserPreferences {
+  // Core identity
+  name?: string;
+  nickname?: string;
   role?: string;
   experienceLevel?: string;
-  primaryGoals?: string[];
+
+  // Mode & workflow
+  assistantMode?: 'companion' | 'professional';
   preferredMode?: 'search' | 'assist' | 'build';
+  workflowPhases?: ('research' | 'plan' | 'deliver')[];
+  primaryGoals?: string[];
+
+  // Interests
   interests?: string[];
+  customInterests?: string[];
+
+  // Communication
   communicationStyle?: 'concise' | 'detailed' | 'conversational';
+  communicationAdaptation?: 'match' | 'balanced' | 'counterbalance';
+  preferredLanguage?: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh' | 'ar';
+
+  // UI preferences
   theme?: 'light' | 'dark' | 'system';
   notifications?: boolean;
+
+  // Device experience settings
+  deviceExperience?: {
+    prefersPowerMode?: boolean;
+    completedOnboarding?: boolean;
+    sessionsCompleted?: number;
+    featuresUsed?: string[];
+  };
+
+  // Essence/personality settings
+  essence?: {
+    voiceTone?: 'friendly' | 'professional' | 'playful' | 'supportive' | 'neutral';
+    responseStyle?: 'concise' | 'detailed' | 'balanced';
+    personalityTraits?: string[];
+    customGreeting?: string;
+    familyMode?: boolean;
+    familyMembers?: string[];
+    childSafetyLevel?: 'open' | 'family' | 'strict';
+  };
+
+  // Time/context
+  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night' | 'auto';
+
+  // Subscription tier
+  tier?: 'free' | 'assistant_pro' | 'builder_pro' | 'builder_business' | 'builder_enterprise';
 }
 
 // GET - Retrieve preferences

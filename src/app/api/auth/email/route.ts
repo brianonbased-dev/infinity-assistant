@@ -1,10 +1,11 @@
 /**
- * Simple Email Auth API
+ * Email + Password Auth API
  *
- * Database-based email signup/signin for Cyber Monday launch.
- * Uses Supabase for storage, no external auth provider needed.
+ * Proper user authentication with password support.
+ * Uses bcrypt-compatible hashing via crypto.scrypt (no native dependency).
  *
  * @since 2025-12-01
+ * @updated 2025-12-02 - Added password support
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,34 +13,108 @@ import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 import crypto from 'crypto';
 
-// Simple email validation
+// ============================================================================
+// VALIDATION
+// ============================================================================
+
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
-// Generate session token
+function isValidPassword(password: string): { valid: boolean; error?: string } {
+  if (!password || password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' };
+  }
+  if (password.length > 128) {
+    return { valid: false, error: 'Password too long' };
+  }
+  return { valid: true };
+}
+
+// ============================================================================
+// PASSWORD HASHING (bcrypt-compatible using scrypt)
+// ============================================================================
+
+const SCRYPT_PARAMS = {
+  N: 16384, // CPU/memory cost
+  r: 8,     // Block size
+  p: 1,     // Parallelization
+  keyLen: 64,
+};
+
+async function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.scrypt(password, salt, SCRYPT_PARAMS.keyLen, {
+      N: SCRYPT_PARAMS.N,
+      r: SCRYPT_PARAMS.r,
+      p: SCRYPT_PARAMS.p,
+    }, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const [salt, key] = hash.split(':');
+    if (!salt || !key) {
+      resolve(false);
+      return;
+    }
+    crypto.scrypt(password, salt, SCRYPT_PARAMS.keyLen, {
+      N: SCRYPT_PARAMS.N,
+      r: SCRYPT_PARAMS.r,
+      p: SCRYPT_PARAMS.p,
+    }, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey.toString('hex') === key);
+    });
+  });
+}
+
+// ============================================================================
+// SESSION MANAGEMENT
+// ============================================================================
+
 function generateSessionToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Hash for simple verification (not password - just email verification)
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
 }
 
 /**
  * POST /api/auth/email
- * Sign up or sign in with email
+ * Sign up or sign in with email and password
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, action = 'signup' } = body;
+    const { email, password, action = 'signup' } = body;
 
     if (!email || !isValidEmail(email)) {
       return NextResponse.json(
         { error: 'Valid email is required' },
+        { status: 400 }
+      );
+    }
+
+    // Password is required for new signups and signin
+    if (!password) {
+      return NextResponse.json(
+        { error: 'Password is required' },
+        { status: 400 }
+      );
+    }
+
+    const passwordValidation = isValidPassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.error },
         { status: 400 }
       );
     }
@@ -51,7 +126,7 @@ export async function POST(request: NextRequest) {
     // Check if user exists
     const { data: existingUser, error: lookupError } = await supabase
       .from(TABLES.USERS)
-      .select('id, email, created_at, tier')
+      .select('id, email, created_at, tier, password_hash')
       .eq('email', normalizedEmail)
       .single();
 
@@ -67,18 +142,50 @@ export async function POST(request: NextRequest) {
     let isNewUser = false;
 
     if (existingUser) {
-      // Existing user - sign in
+      // Existing user - verify password
+      if (!existingUser.password_hash) {
+        // Legacy user without password - allow setting one
+        const hashedPassword = await hashPassword(password);
+        const { error: updateError } = await supabase
+          .from(TABLES.USERS)
+          .update({
+            password_hash: hashedPassword,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingUser.id);
+
+        if (updateError) {
+          logger.error('[EmailAuth] Failed to set password:', updateError);
+          return NextResponse.json(
+            { error: 'Failed to update account' },
+            { status: 500 }
+          );
+        }
+        logger.info(`[EmailAuth] Password set for legacy user: ${emailHash.substring(0, 8)}...`);
+      } else {
+        // Verify password
+        const isValid = await verifyPassword(password, existingUser.password_hash);
+        if (!isValid) {
+          return NextResponse.json(
+            { error: 'Invalid email or password' },
+            { status: 401 }
+          );
+        }
+      }
+
       userId = existingUser.id;
       logger.info(`[EmailAuth] User signed in: ${emailHash.substring(0, 8)}...`);
     } else if (action === 'signup') {
-      // New user - create account
+      // New user - create account with password
       const newUserId = `user_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+      const hashedPassword = await hashPassword(password);
 
       const { error: insertError } = await supabase
         .from(TABLES.USERS)
         .insert({
           id: newUserId,
           email: normalizedEmail,
+          password_hash: hashedPassword,
           tier: 'free',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

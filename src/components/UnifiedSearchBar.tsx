@@ -42,6 +42,7 @@ import { type UserTier, isModeAllowedForTier, hasBuilderAccess } from '@/types/a
 import { useFreemiumDebounced } from '@/hooks/useFreemium';
 import { FreemiumOfferCard, FreemiumResponse } from '@/components/FreemiumOffer';
 import { getQueryIntentClassifier, type QueryIntent } from '@/services/QueryIntentClassifier';
+import MessageRenderer from '@/components/MessageRenderer';
 
 type SearchMode = 'search' | 'assist' | 'build';
 
@@ -912,7 +913,7 @@ export default function UnifiedSearchBar({
                     </span>
                   </div>
                 )}
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
+                <MessageRenderer content={message.content} />
                 <div className="text-xs text-gray-400 mt-2">
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </div>

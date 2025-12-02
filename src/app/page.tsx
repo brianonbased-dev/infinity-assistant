@@ -26,6 +26,9 @@ import { useLocalPreferences } from '@/hooks/useLocalPreferences';
 import { CyberMondayCountdown } from '@/components/CyberMondayCountdown';
 import { demoWorkspaceStorage } from '@/services/DemoWorkspaceStorage';
 import { UserTier } from '@/types/agent-capabilities';
+import { useDeviceExperience } from '@/hooks/useDeviceExperience';
+import MobileOnboarding from '@/components/MobileOnboarding';
+import MobileChatInterface from '@/components/MobileChatInterface';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -40,6 +43,15 @@ function InfinityAssistantContent() {
   const [userId, setUserId] = useState<string>('');
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [userTier, setUserTier] = useState<UserTier>('free');
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; content: string; role: 'user' | 'assistant'; timestamp: string }>>([]);
+
+  // Device and experience detection for adaptive UI
+  const {
+    isMobile,
+    isBeginner,
+    adaptiveUI,
+    trackFeatureUsage,
+  } = useDeviceExperience();
 
   // Handle upgrade button click - navigate to pricing page
   const handleUpgradeClick = () => {
@@ -52,7 +64,6 @@ function InfinityAssistantContent() {
     isLoading: preferencesLoading,
     hasCompletedOnboarding: hasLocalOnboarding,
     savePreferences,
-    updatePreferences,
     syncEnabled,
     setSyncEnabled,
     syncToDatabase,
@@ -273,8 +284,41 @@ function InfinityAssistantContent() {
     );
   }
 
-  // Show Assistant onboarding
+  // Show Assistant onboarding (use simplified mobile version for mobile beginners)
   if (showAssistantOnboarding && userId) {
+    // Mobile beginners get simplified 3-step onboarding
+    if (isMobile && isBeginner) {
+      return (
+        <MobileOnboarding
+          onComplete={(mobilePrefs) => {
+            // Convert mobile preferences to companion preferences format
+            const companionPrefs: CompanionPreferences = {
+              mode: 'companion',
+              name: mobilePrefs.name,
+              personality: 'friendly',
+              communicationStyle: 'casual',
+              communicationAdaptation: 'balanced',
+              interests: [],
+              customInterests: [],
+              responseLength: 'balanced',
+              familyMode: false,
+              familyMembers: [],
+              childSafetyLevel: 'family',
+              preferredLanguage: (mobilePrefs.language as CompanionPreferences['preferredLanguage']) || 'en',
+              timeOfDay: 'auto',
+            };
+            handleAssistantOnboardingComplete(companionPrefs);
+          }}
+          onSkip={() => {
+            setShowAssistantOnboarding(false);
+            setShowChat(true);
+            router.push('/?view=chat', { scroll: false });
+          }}
+        />
+      );
+    }
+
+    // Desktop/experienced users get full onboarding
     return (
       <AssistantOnboarding
         userId={userId}
@@ -302,8 +346,59 @@ function InfinityAssistantContent() {
     );
   }
 
+  // Handle sending message from mobile chat
+  const handleMobileSendMessage = async (message: string) => {
+    const newUserMessage = {
+      id: `msg_${Date.now()}`,
+      content: message,
+      role: 'user' as const,
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, newUserMessage]);
+    trackFeatureUsage('chat');
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          userId,
+          userTier,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const assistantMessage = {
+          id: `msg_${Date.now()}_assistant`,
+          content: data.response || data.message || 'I received your message.',
+          role: 'assistant' as const,
+          timestamp: new Date().toISOString(),
+        };
+        setChatMessages(prev => [...prev, assistantMessage]);
+      }
+    } catch (error) {
+      logger.error('[MobileChat] Send failed:', error);
+    }
+  };
+
   // Show chat interface if requested
   if (showChat) {
+    // Mobile beginners get simplified mobile chat interface
+    if (isMobile && isBeginner) {
+      return (
+        <MobileChatInterface
+          messages={chatMessages}
+          onSendMessage={handleMobileSendMessage}
+          isLoading={false}
+          userName={userPreferences?.role || undefined}
+          assistantName="Infinity"
+        />
+      );
+    }
+
+    // Desktop/experienced users get full UnifiedSearchBar
     return (
       <div className="h-screen flex flex-col bg-gradient-to-br from-purple-900 via-blue-900 to-black">
         {/* Header */}
@@ -312,6 +407,7 @@ function InfinityAssistantContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
+                  type="button"
                   onClick={handleCloseChat}
                   className="flex items-center gap-2 text-gray-400 hover:text-purple-400 transition-colors"
                 >
@@ -327,16 +423,18 @@ function InfinityAssistantContent() {
                 </div>
               </div>
 
+              {/* Hide extra nav items on mobile for cleaner UI */}
               <div className="flex items-center gap-4">
                 <a
                   href="https://infinityassistant.io"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-gray-400 hover:text-purple-400 transition-colors"
+                  className="hidden md:block text-sm text-gray-400 hover:text-purple-400 transition-colors"
                 >
                   InfinityAssistant.io
                 </a>
                 <button
+                  type="button"
                   onClick={() => setShowSettings(true)}
                   className="p-2 text-gray-400 hover:text-purple-400 transition-colors"
                   title="Settings"

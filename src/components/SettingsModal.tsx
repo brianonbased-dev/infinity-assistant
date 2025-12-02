@@ -9,8 +9,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages, Package } from 'lucide-react';
-import { UserPreferences } from '@/components/BuilderOnboarding';
+import { X, Save, Cloud, CloudOff, User, Sparkles, MessageCircle, Brain, Trash2, AlertCircle, FileSearch, Lightbulb, AlertTriangle, Users, Mic, Edit2, Plus, Languages, Package, Heart } from 'lucide-react';
+import { UserPreferences, AssistantMode } from '@/hooks/useLocalPreferences';
 import type { MemoryEntry, CompressedMemory } from '@/lib/knowledge/types';
 import type { KnowledgePacket } from '@/services/MasterRpcClient';
 
@@ -120,15 +120,28 @@ const interestOptions = [
 ];
 
 const defaultPreferences: UserPreferences = {
+  name: '',
+  nickname: '',
   role: '',
   experienceLevel: '',
-  primaryGoals: [],
+  assistantMode: 'companion',
   preferredMode: 'assist',
+  workflowPhases: ['research', 'plan', 'deliver'],
+  primaryGoals: [],
   interests: [],
   customInterests: [],
   communicationStyle: 'conversational',
-  workflowPhases: ['research', 'plan', 'deliver'],
+  communicationAdaptation: 'balanced',
   preferredLanguage: 'en',
+  essence: {
+    voiceTone: 'friendly',
+    responseStyle: 'balanced',
+    familyMode: false,
+    familyMembers: [],
+    childSafetyLevel: 'family',
+  },
+  timeOfDay: 'auto',
+  tier: 'free',
 };
 
 export function SettingsModal({
@@ -460,6 +473,67 @@ export function SettingsModal({
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {activeTab === 'profile' && (
             <div className="space-y-6">
+              {/* Name & Nickname */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editedPrefs.name || ''}
+                    onChange={(e) => setEditedPrefs((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Enter your name"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Nickname (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editedPrefs.nickname || ''}
+                    onChange={(e) => setEditedPrefs((p) => ({ ...p, nickname: e.target.value }))}
+                    placeholder="How should I address you?"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Assistant Mode Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Assistant Mode
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setEditedPrefs((p) => ({ ...p, assistantMode: 'companion' }))}
+                    className={`p-4 rounded-lg border text-left transition-all ${
+                      editedPrefs.assistantMode === 'companion'
+                        ? 'border-pink-500 bg-pink-500/20 text-white'
+                        : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 mb-2 ${editedPrefs.assistantMode === 'companion' ? 'text-pink-400' : ''}`} />
+                    <div className="font-medium">Companion</div>
+                    <div className="text-xs opacity-75">Personal, friendly assistant</div>
+                  </button>
+                  <button
+                    onClick={() => setEditedPrefs((p) => ({ ...p, assistantMode: 'professional' }))}
+                    className={`p-4 rounded-lg border text-left transition-all ${
+                      editedPrefs.assistantMode === 'professional'
+                        ? 'border-blue-500 bg-blue-500/20 text-white'
+                        : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    <Sparkles className={`w-5 h-5 mb-2 ${editedPrefs.assistantMode === 'professional' ? 'text-blue-400' : ''}`} />
+                    <div className="font-medium">Professional</div>
+                    <div className="text-xs opacity-75">Work-focused assistant</div>
+                  </button>
+                </div>
+              </div>
+
               {/* Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-3">

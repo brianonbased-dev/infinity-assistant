@@ -43,6 +43,7 @@ import {
   Moon,
   Coffee,
 } from 'lucide-react';
+import { UserPreferences } from '@/hooks/useLocalPreferences';
 
 interface WizardStep {
   id: string;
@@ -80,8 +81,61 @@ export interface CompanionPreferences {
 
 interface AssistantOnboardingProps {
   userId: string;
-  onComplete: (preferences: CompanionPreferences) => void;
+  onComplete: (preferences: UserPreferences) => void;
   onSkip: () => void;
+}
+
+/**
+ * Convert CompanionPreferences to unified UserPreferences format
+ */
+function toUserPreferences(companion: CompanionPreferences): UserPreferences {
+  // Map communication style from companion format to unified format
+  const communicationStyleMap: Record<string, 'concise' | 'detailed' | 'conversational'> = {
+    'casual': 'conversational',
+    'balanced': 'conversational',
+    'formal': 'concise',
+  };
+
+  // Map response length to essence response style
+  const responseStyleMap: Record<string, 'concise' | 'detailed' | 'balanced'> = {
+    'brief': 'concise',
+    'balanced': 'balanced',
+    'detailed': 'detailed',
+  };
+
+  // Map personality to voice tone
+  const voiceToneMap: Record<string, 'friendly' | 'professional' | 'playful' | 'supportive' | 'neutral'> = {
+    'friendly': 'friendly',
+    'professional': 'professional',
+    'playful': 'playful',
+    'supportive': 'supportive',
+    'wise': 'neutral',
+  };
+
+  return {
+    name: companion.name,
+    nickname: companion.nickname,
+    role: '', // Companion mode doesn't collect role
+    experienceLevel: '', // Companion mode doesn't collect experience
+    assistantMode: companion.mode,
+    preferredMode: 'assist', // Companion mode defaults to assist
+    workflowPhases: ['research', 'plan', 'deliver'],
+    primaryGoals: [],
+    interests: companion.interests,
+    customInterests: companion.customInterests,
+    communicationStyle: communicationStyleMap[companion.communicationStyle] || 'conversational',
+    communicationAdaptation: companion.communicationAdaptation,
+    preferredLanguage: companion.preferredLanguage,
+    essence: {
+      voiceTone: voiceToneMap[companion.personality] || 'friendly',
+      responseStyle: responseStyleMap[companion.responseLength] || 'balanced',
+      familyMode: companion.familyMode,
+      familyMembers: companion.familyMembers,
+      childSafetyLevel: companion.childSafetyLevel,
+    },
+    timeOfDay: companion.timeOfDay,
+    tier: 'free',
+  };
 }
 
 export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnboardingProps) {
@@ -807,6 +861,8 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
 
   const handleComplete = async () => {
     setIsCompleting(true);
+    // Convert to unified UserPreferences format
+    const unifiedPrefs = toUserPreferences(preferences);
     try {
       await fetch('/api/onboarding/complete', {
         method: 'POST',
@@ -815,14 +871,14 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
           userId,
           type: 'companion',
           stepsCompleted: steps.map(s => s.id),
-          preferences,
+          preferences: unifiedPrefs, // Save unified format
         }),
       });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
     }
     setIsCompleting(false);
-    onComplete(preferences);
+    onComplete(unifiedPrefs);
   };
 
   const currentStepData = steps[currentStep];

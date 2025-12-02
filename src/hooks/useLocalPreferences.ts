@@ -7,31 +7,91 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+/**
+ * Assistant Mode - companion for personal use, professional for work
+ */
+export type AssistantMode = 'companion' | 'professional';
+
+/**
+ * Unified User Preferences
+ *
+ * Combines both companion (AssistantOnboarding) and builder (BuilderOnboarding) preferences
+ * into a single interface for seamless settings management.
+ */
 export interface UserPreferences {
-  role: string;
-  experienceLevel: string;
-  primaryGoals: string[];
+  // === CORE IDENTITY ===
+  name?: string; // User's name (companion mode)
+  nickname?: string; // How assistant should address them
+  role: string; // Professional role (developer, designer, etc.)
+  experienceLevel: string; // beginner, intermediate, advanced, expert
+
+  // === MODE & WORKFLOW ===
+  assistantMode?: AssistantMode; // companion or professional
   preferredMode: 'search' | 'assist' | 'build';
+  workflowPhases: ('research' | 'plan' | 'deliver')[];
+  primaryGoals: string[];
+
+  // === INTERESTS ===
   interests: string[];
-  customInterests: string[]; // User-added technologies
+  customInterests: string[]; // User-added technologies/topics
+
+  // === COMMUNICATION ===
   communicationStyle: 'concise' | 'detailed' | 'conversational';
-  workflowPhases: ('research' | 'plan' | 'deliver')[]; // Preferred workflow phases
-  preferredLanguage: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh' | 'ar'; // Bilingual support
+  communicationAdaptation?: 'match' | 'balanced' | 'counterbalance';
+  preferredLanguage: 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'ja' | 'ko' | 'zh' | 'ar';
+
+  // === ESSENCE/PERSONALITY (unified from AssistantOnboarding) ===
+  essence?: {
+    voiceTone?: 'friendly' | 'professional' | 'playful' | 'supportive' | 'neutral';
+    responseStyle?: 'concise' | 'detailed' | 'balanced';
+    personalityTraits?: string[];
+    customGreeting?: string;
+    // Family mode settings
+    familyMode?: boolean;
+    familyMembers?: string[];
+    childSafetyLevel?: 'open' | 'family' | 'strict';
+  };
+
+  // === TIME/CONTEXT ===
+  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night' | 'auto';
+
+  // === SUBSCRIPTION ===
+  tier?: 'free' | 'assistant_pro' | 'builder_pro' | 'builder_business' | 'builder_enterprise';
 }
 
 const PREFERENCES_KEY = 'infinity_user_preferences';
 const SYNC_PREFERENCES_KEY = 'infinity_sync_preferences';
 
 const defaultPreferences: UserPreferences = {
+  // Core identity
+  name: '',
+  nickname: '',
   role: '',
   experienceLevel: '',
-  primaryGoals: [],
+  // Mode & workflow
+  assistantMode: 'companion',
   preferredMode: 'assist',
+  workflowPhases: ['research', 'plan', 'deliver'],
+  primaryGoals: [],
+  // Interests
   interests: [],
   customInterests: [],
+  // Communication
   communicationStyle: 'conversational',
-  workflowPhases: ['research', 'plan', 'deliver'],
-  preferredLanguage: 'en', // Default to English, auto-detect will update
+  communicationAdaptation: 'balanced',
+  preferredLanguage: 'en',
+  // Essence/personality
+  essence: {
+    voiceTone: 'friendly',
+    responseStyle: 'balanced',
+    familyMode: false,
+    familyMembers: [],
+    childSafetyLevel: 'family',
+  },
+  // Time/context
+  timeOfDay: 'auto',
+  // Subscription
+  tier: 'free',
 };
 
 interface UseLocalPreferencesReturn {
@@ -44,7 +104,9 @@ interface UseLocalPreferencesReturn {
   clearPreferences: () => void;
   setSyncEnabled: (enabled: boolean) => void;
   syncToDatabase: (userId: string) => Promise<boolean>;
+  syncToApi: () => Promise<boolean>; // Sync to user preferences API
   loadFromDatabase: (userId: string) => Promise<void>;
+  loadFromApi: () => Promise<void>; // Load from user preferences API
 }
 
 export function useLocalPreferences(): UseLocalPreferencesReturn {
@@ -158,6 +220,76 @@ export function useLocalPreferences(): UseLocalPreferencesReturn {
     }
   }, [preferences, savePreferences]);
 
+  // Sync to user preferences API (works with anonymous users via cookie)
+  const syncToApi = useCallback(async (): Promise<boolean> => {
+    if (!preferences) return false;
+
+    try {
+      const response = await fetch('/api/user/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for anonymous user ID
+        body: JSON.stringify({ preferences }),
+      });
+
+      if (response.ok) {
+        console.log('[useLocalPreferences] Synced preferences to API');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[useLocalPreferences] Error syncing to API:', error);
+      return false;
+    }
+  }, [preferences]);
+
+  // Load preferences from user preferences API
+  const loadFromApi = useCallback(async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/user/preferences', {
+        method: 'GET',
+        credentials: 'include', // Include cookies for anonymous user ID
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.preferences && Object.keys(data.preferences).length > 0) {
+          // Merge API preferences with local (local takes precedence if it has values)
+          const hasLocalPrefs = preferences && Object.keys(preferences).some(
+            (key) => {
+              const val = preferences[key as keyof UserPreferences];
+              return val !== '' && val !== undefined && (!Array.isArray(val) || val.length > 0);
+            }
+          );
+
+          if (hasLocalPrefs) {
+            // Local takes precedence, merge API values for missing fields
+            const merged = { ...defaultPreferences, ...data.preferences, ...preferences };
+            savePreferences(merged);
+          } else {
+            // Use API preferences as base
+            savePreferences({ ...defaultPreferences, ...data.preferences });
+          }
+          console.log('[useLocalPreferences] Loaded preferences from API');
+        }
+      }
+    } catch (error) {
+      console.error('[useLocalPreferences] Error loading from API:', error);
+    }
+  }, [preferences, savePreferences]);
+
+  // Auto-sync to API when preferences change and sync is enabled
+  useEffect(() => {
+    if (syncEnabled && preferences && hasCompletedOnboarding) {
+      // Debounce the sync to avoid too many API calls
+      const timeoutId = setTimeout(() => {
+        syncToApi();
+      }, 2000); // Wait 2 seconds after last change
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [syncEnabled, preferences, hasCompletedOnboarding, syncToApi]);
+
   return {
     preferences,
     isLoading,
@@ -168,7 +300,9 @@ export function useLocalPreferences(): UseLocalPreferencesReturn {
     clearPreferences,
     setSyncEnabled,
     syncToDatabase,
+    syncToApi,
     loadFromDatabase,
+    loadFromApi,
   };
 }
 
@@ -180,6 +314,20 @@ export function generatePreferencesPrompt(preferences: UserPreferences | null): 
   if (!preferences) return '';
 
   const parts: string[] = [];
+
+  // User name/nickname for personalization
+  if (preferences.nickname) {
+    parts.push(`Address the user as "${preferences.nickname}".`);
+  } else if (preferences.name) {
+    parts.push(`The user's name is ${preferences.name}.`);
+  }
+
+  // Assistant mode context
+  if (preferences.assistantMode === 'companion') {
+    parts.push('You are a friendly personal companion assistant.');
+  } else if (preferences.assistantMode === 'professional') {
+    parts.push('You are a professional work assistant.');
+  }
 
   // Role context
   if (preferences.role) {
@@ -270,6 +418,42 @@ export function generatePreferencesPrompt(preferences: UserPreferences | null): 
     };
     const langName = languageNames[preferences.preferredLanguage] || preferences.preferredLanguage;
     parts.push(`IMPORTANT: The user prefers ${langName}. Respond bilingually - first in ${langName}, then in English after a "---" separator.`);
+  }
+
+  // Communication adaptation preference
+  if (preferences.communicationAdaptation) {
+    const adaptDescriptions: Record<string, string> = {
+      match: 'Mirror the user\'s energy and communication style - if they\'re excited, be excited.',
+      balanced: 'Be friendly and adaptable - professional for work, casual for chat.',
+      counterbalance: 'Be what they need - calm when stressed, focused when scattered.',
+    };
+    parts.push(adaptDescriptions[preferences.communicationAdaptation] || '');
+  }
+
+  // Essence/personality settings
+  if (preferences.essence) {
+    const essenceParts: string[] = [];
+
+    if (preferences.essence.voiceTone) {
+      essenceParts.push(`Voice tone: ${preferences.essence.voiceTone}`);
+    }
+
+    if (preferences.essence.responseStyle) {
+      essenceParts.push(`Response style: ${preferences.essence.responseStyle}`);
+    }
+
+    if (preferences.essence.customGreeting) {
+      essenceParts.push(`Custom greeting: "${preferences.essence.customGreeting}"`);
+    }
+
+    if (preferences.essence.familyMode) {
+      const safetyLevel = preferences.essence.childSafetyLevel || 'family';
+      essenceParts.push(`Family mode active (${safetyLevel} safety)`);
+    }
+
+    if (essenceParts.length > 0) {
+      parts.push(`Personality: ${essenceParts.join(', ')}.`);
+    }
   }
 
   if (parts.length === 0) return '';

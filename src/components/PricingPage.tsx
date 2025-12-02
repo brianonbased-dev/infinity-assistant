@@ -64,7 +64,7 @@ const ASSISTANT_TIERS: PricingTier[] = [
     ],
   },
   {
-    id: 'pro',
+    id: 'assistant_pro', // Canonical tier name
     name: 'Pro',
     usdPrice: 29, // $29/mo - Cyber Monday: $14.50
     brianPrice: 23200, // ~20% discount in $BRIAN
@@ -96,7 +96,7 @@ const BUILDER_TIERS: PricingTier[] = [
     ],
   },
   {
-    id: 'pro',
+    id: 'builder_pro', // Canonical tier name
     name: 'Pro',
     usdPrice: 49, // $49/mo - Cyber Monday: $24.50
     brianPrice: 39200, // ~20% discount in $BRIAN
@@ -112,7 +112,7 @@ const BUILDER_TIERS: PricingTier[] = [
     ],
   },
   {
-    id: 'business',
+    id: 'builder_business', // Canonical tier name
     name: 'Business',
     usdPrice: 149, // $149/mo - Cyber Monday: $74.50
     brianPrice: 104300, // ~30% discount in $BRIAN
@@ -147,6 +147,10 @@ function PricingCard({ tier, type, onSelect, brianLogoPath = '/images/brian-logo
     free: Zap,
     starter: Zap,
     pro: Sparkles,
+    assistant_pro: Sparkles,
+    builder_pro: Rocket,
+    builder_business: Crown,
+    builder_enterprise: Crown,
     creator: Rocket,
     enterprise: Crown,
     agency: Crown,
