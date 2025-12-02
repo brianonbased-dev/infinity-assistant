@@ -2,13 +2,15 @@
  * Health Check API
  *
  * Returns service health status for monitoring
- * Includes mesh network and Ollama LLM status
+ * Includes mesh network, Ollama LLM, and fallback LLM status
  */
 
 import { NextResponse } from 'next/server';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import { ollamaService } from '@/services/OllamaService';
 import { meshNodeClient } from '@/services/MeshNodeClient';
+import { getMasterPortalClient } from '@/services/MasterPortalClient';
+import { getFallbackLLMService } from '@/services/FallbackLLMService';
 
 export async function GET() {
   const checks: Record<string, { status: string; latency?: number; details?: any }> = {};
@@ -71,6 +73,78 @@ export async function GET() {
     };
   } catch {
     checks.mesh = { status: 'error' };
+  }
+
+  // Check UAA2 service (Master Portal) with all failover endpoints
+  try {
+    const masterPortal = getMasterPortalClient();
+    const healthStatus = masterPortal.getHealthStatus();
+
+    // Check if any endpoint is healthy
+    const anyHealthy = healthStatus.allEndpoints.some(e => e.healthy);
+    const hasMCP = masterPortal.hasMCPSupport();
+
+    checks.uaa2_service = {
+      status: anyHealthy ? 'healthy' : 'unhealthy',
+      details: {
+        hasMCPSupport: hasMCP,
+        endpoints: healthStatus.allEndpoints.map(e => ({
+          name: e.name,
+          url: e.url,
+          healthy: e.healthy,
+          failureCount: e.failureCount,
+          supportsMCP: e.supportsMCP,
+        })),
+        primary: {
+          url: healthStatus.primary.url,
+          healthy: healthStatus.primary.healthy,
+          failureCount: healthStatus.primary.failureCount,
+        },
+        aiWorkspace: healthStatus.aiWorkspace ? {
+          url: healthStatus.aiWorkspace.url,
+          healthy: healthStatus.aiWorkspace.healthy,
+          failureCount: healthStatus.aiWorkspace.failureCount,
+          supportsMCP: healthStatus.aiWorkspace.supportsMCP,
+        } : null,
+        backup: healthStatus.backup ? {
+          url: healthStatus.backup.url,
+          healthy: healthStatus.backup.healthy,
+          failureCount: healthStatus.backup.failureCount,
+        } : null,
+      },
+    };
+
+    if (!anyHealthy) {
+      overallStatus = 'degraded';
+    }
+  } catch {
+    checks.uaa2_service = { status: 'error' };
+    overallStatus = 'degraded';
+  }
+
+  // Check Fallback LLM Service
+  try {
+    const fallbackService = getFallbackLLMService();
+    const fallbackHealth = await fallbackService.healthCheck();
+    checks.fallback_llm = {
+      status: fallbackHealth.available ? 'available' : 'unavailable',
+      details: {
+        providers: fallbackHealth.providers,
+        configuredProviders: fallbackService.getAvailableProviders(),
+      },
+    };
+  } catch {
+    checks.fallback_llm = { status: 'error' };
+  }
+
+  // Determine if we have any LLM capability
+  const hasLLMCapability =
+    checks.uaa2_service?.status === 'healthy' ||
+    checks.fallback_llm?.status === 'available' ||
+    checks.ollama?.status === 'healthy';
+
+  if (!hasLLMCapability) {
+    overallStatus = 'critical';
   }
 
   return NextResponse.json({

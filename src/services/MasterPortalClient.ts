@@ -6,14 +6,17 @@
  *
  * FAILOVER ARCHITECTURE:
  * - Primary: uaa2-service on Railway (UAA2_SERVICE_URL)
- * - Backup: AI_Workspace on Railway (UAA2_BACKUP_URL)
+ * - Secondary: AI_Workspace on Railway (AI_WORKSPACE_URL) - also supports MCP
+ * - Backup: Custom backup URL (UAA2_BACKUP_URL)
+ * - Final Fallback: Direct LLM providers (Claude, OpenAI, Ollama)
  *
- * If primary fails, automatically tries backup. Caches health status to avoid
- * repeated failed requests.
+ * If primary fails, automatically tries AI_Workspace, then backup.
+ * If all service endpoints fail, falls back to direct LLM providers.
  */
 
 import logger from '@/utils/logger';
 import { getErrorMessage } from '@/utils/error-handling';
+import { getFallbackLLMService } from './FallbackLLMService';
 
 export interface UAA2Response<T = any> {
   success: boolean;
@@ -23,9 +26,11 @@ export interface UAA2Response<T = any> {
 
 interface EndpointHealth {
   url: string;
+  name: string;
   healthy: boolean;
   lastCheck: Date;
   failureCount: number;
+  supportsMCP?: boolean;
 }
 
 const HEALTH_CHECK_INTERVAL_MS = 30000; // 30 seconds
@@ -33,58 +38,109 @@ const MAX_FAILURES_BEFORE_UNHEALTHY = 3;
 
 export class MasterPortalClient {
   private primaryUrl: string;
+  private aiWorkspaceUrl: string | null;
   private backupUrl: string | null;
   private apiKey: string;
   private endpointHealth: Map<string, EndpointHealth> = new Map();
 
   constructor() {
     this.primaryUrl = process.env.UAA2_SERVICE_URL || 'http://localhost:3000';
+    this.aiWorkspaceUrl = process.env.AI_WORKSPACE_URL || process.env.AI_WORKSPACE_RAILWAY_URL || null;
     this.backupUrl = process.env.UAA2_BACKUP_URL || null;
     this.apiKey = process.env.UAA2_SERVICE_API_KEY || '';
 
-    // Initialize health tracking
+    // Initialize health tracking for primary
     this.endpointHealth.set(this.primaryUrl, {
       url: this.primaryUrl,
+      name: 'uaa2-service',
       healthy: true,
       lastCheck: new Date(),
       failureCount: 0,
+      supportsMCP: true,
     });
 
-    if (this.backupUrl) {
+    // Initialize AI_Workspace as secondary fallback with MCP support
+    if (this.aiWorkspaceUrl) {
+      this.endpointHealth.set(this.aiWorkspaceUrl, {
+        url: this.aiWorkspaceUrl,
+        name: 'ai-workspace',
+        healthy: true,
+        lastCheck: new Date(),
+        failureCount: 0,
+        supportsMCP: true, // AI_Workspace supports MCP
+      });
+      logger.info('[MasterPortalClient] AI_Workspace failover enabled', {
+        url: this.aiWorkspaceUrl,
+      });
+    }
+
+    // Initialize backup if configured
+    if (this.backupUrl && this.backupUrl !== this.aiWorkspaceUrl) {
       this.endpointHealth.set(this.backupUrl, {
         url: this.backupUrl,
+        name: 'backup',
         healthy: true,
         lastCheck: new Date(),
         failureCount: 0,
       });
-      logger.info('[MasterPortalClient] Failover enabled', {
-        primary: this.primaryUrl,
-        backup: this.backupUrl,
+    }
+
+    const endpoints = this.getOrderedEndpoints();
+    if (endpoints.length > 1) {
+      logger.info('[MasterPortalClient] Failover chain configured', {
+        endpoints: endpoints.map(e => ({ name: e.name, url: e.url })),
       });
     }
   }
 
   /**
-   * Get the best available endpoint (prefers healthy primary)
+   * Get all endpoints in priority order
    */
-  private getBestEndpoint(): string {
-    const primaryHealth = this.endpointHealth.get(this.primaryUrl);
+  private getOrderedEndpoints(): EndpointHealth[] {
+    const endpoints: EndpointHealth[] = [];
 
-    // If primary is healthy or we have no backup, use primary
-    if (!this.backupUrl || primaryHealth?.healthy) {
-      return this.primaryUrl;
+    // Primary first
+    const primary = this.endpointHealth.get(this.primaryUrl);
+    if (primary) endpoints.push(primary);
+
+    // AI_Workspace second (has MCP support)
+    if (this.aiWorkspaceUrl) {
+      const aiWorkspace = this.endpointHealth.get(this.aiWorkspaceUrl);
+      if (aiWorkspace) endpoints.push(aiWorkspace);
     }
 
-    // Primary unhealthy, check if we should retry
-    const timeSinceLastCheck = Date.now() - (primaryHealth?.lastCheck.getTime() || 0);
-    if (timeSinceLastCheck > HEALTH_CHECK_INTERVAL_MS) {
-      // Try primary again
-      return this.primaryUrl;
+    // Backup third
+    if (this.backupUrl && this.backupUrl !== this.aiWorkspaceUrl) {
+      const backup = this.endpointHealth.get(this.backupUrl);
+      if (backup) endpoints.push(backup);
     }
 
-    // Use backup
-    logger.debug('[MasterPortalClient] Using backup endpoint', { backup: this.backupUrl });
-    return this.backupUrl;
+    return endpoints;
+  }
+
+  /**
+   * Get the best available endpoint (prefers healthy endpoints in priority order)
+   */
+  private getBestEndpoint(): EndpointHealth {
+    const orderedEndpoints = this.getOrderedEndpoints();
+
+    for (const endpoint of orderedEndpoints) {
+      if (endpoint.healthy) {
+        return endpoint;
+      }
+
+      // Check if we should retry unhealthy endpoints
+      const timeSinceLastCheck = Date.now() - endpoint.lastCheck.getTime();
+      if (timeSinceLastCheck > HEALTH_CHECK_INTERVAL_MS) {
+        // Reset for retry
+        endpoint.healthy = true;
+        endpoint.failureCount = 0;
+        return endpoint;
+      }
+    }
+
+    // All unhealthy, return primary to try anyway
+    return orderedEndpoints[0];
   }
 
   /**
@@ -102,6 +158,7 @@ export class MasterPortalClient {
       if (health.failureCount >= MAX_FAILURES_BEFORE_UNHEALTHY) {
         health.healthy = false;
         logger.warn('[MasterPortalClient] Endpoint marked unhealthy', {
+          name: health.name,
           url,
           failures: health.failureCount,
         });
@@ -111,35 +168,48 @@ export class MasterPortalClient {
   }
 
   /**
-   * Make request with failover support
+   * Make request with failover support across all configured endpoints
    */
   private async fetchWithFailover(
     path: string,
     options: RequestInit
   ): Promise<Response> {
-    const primaryEndpoint = this.getBestEndpoint();
-    const endpoints = [primaryEndpoint];
+    const orderedEndpoints = this.getOrderedEndpoints();
+    const bestEndpoint = this.getBestEndpoint();
 
-    // Add backup to try list if it exists and isn't already primary
-    if (this.backupUrl && primaryEndpoint !== this.backupUrl) {
-      endpoints.push(this.backupUrl);
+    // Build list of endpoints to try, starting with best
+    const endpointsToTry = [bestEndpoint];
+    for (const endpoint of orderedEndpoints) {
+      if (endpoint.url !== bestEndpoint.url) {
+        endpointsToTry.push(endpoint);
+      }
     }
 
     let lastError: Error | null = null;
 
-    for (const baseUrl of endpoints) {
+    for (const endpoint of endpointsToTry) {
       try {
-        const response = await fetch(`${baseUrl}${path}`, {
+        logger.debug('[MasterPortalClient] Trying endpoint', {
+          name: endpoint.name,
+          url: endpoint.url,
+        });
+
+        const response = await fetch(`${endpoint.url}${path}`, {
           ...options,
           headers: {
             ...options.headers,
             'X-Service-Name': 'infinityassistant',
+            'X-Fallback-Source': endpoint.name,
             ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
           },
         });
 
         if (response.ok) {
-          this.markEndpointHealth(baseUrl, true);
+          this.markEndpointHealth(endpoint.url, true);
+          logger.debug('[MasterPortalClient] Request succeeded', {
+            name: endpoint.name,
+            url: endpoint.url,
+          });
           return response;
         }
 
@@ -148,14 +218,15 @@ export class MasterPortalClient {
           return response; // Return client errors as-is
         }
 
-        // Server error - mark unhealthy and try backup
-        this.markEndpointHealth(baseUrl, false);
-        lastError = new Error(`HTTP ${response.status}`);
+        // Server error - mark unhealthy and try next
+        this.markEndpointHealth(endpoint.url, false);
+        lastError = new Error(`HTTP ${response.status} from ${endpoint.name}`);
       } catch (error) {
-        this.markEndpointHealth(baseUrl, false);
+        this.markEndpointHealth(endpoint.url, false);
         lastError = error instanceof Error ? error : new Error(String(error));
         logger.debug('[MasterPortalClient] Endpoint failed, trying next', {
-          url: baseUrl,
+          name: endpoint.name,
+          url: endpoint.url,
           error: getErrorMessage(error),
         });
       }
@@ -167,6 +238,7 @@ export class MasterPortalClient {
   /**
    * Process customer query through public assistant chat API
    * Automatically fails over to backup if primary is down
+   * Falls back to direct LLM providers if all uaa2-service endpoints fail
    */
   async processCustomerQuery(
     message: string,
@@ -176,7 +248,7 @@ export class MasterPortalClient {
       mode?: 'limited' | 'search' | 'assist' | 'build';
       limitedCapabilities?: string[];
     }
-  ): Promise<{ response: string; tokensUsed?: number; conversationId?: string }> {
+  ): Promise<{ response: string; tokensUsed?: number; conversationId?: string; usedFallback?: boolean }> {
     try {
       const response = await this.fetchWithFailover('/api/assistant/chat', {
         method: 'POST',
@@ -201,11 +273,92 @@ export class MasterPortalClient {
         response: data.response,
         tokensUsed: data.metadata?.tokensUsed,
         conversationId: data.conversationId,
+        usedFallback: false,
       };
     } catch (error) {
-      logger.error('[MasterPortalClient] Chat error:', getErrorMessage(error));
-      throw error;
+      logger.warn('[MasterPortalClient] UAA2 service unavailable, trying fallback LLM:', getErrorMessage(error));
+
+      // Try fallback LLM providers
+      try {
+        const fallbackService = getFallbackLLMService();
+
+        if (!fallbackService.isAvailable()) {
+          logger.error('[MasterPortalClient] No fallback LLM providers configured');
+          throw error; // Re-throw original error
+        }
+
+        // Generate a simplified system prompt for fallback mode
+        const fallbackSystemPrompt = this.generateFallbackSystemPrompt(options.mode);
+
+        const fallbackResult = await fallbackService.chat({
+          messages: [
+            { role: 'system', content: fallbackSystemPrompt },
+            { role: 'user', content: message },
+          ],
+          maxTokens: 4096,
+          temperature: 0.7,
+        });
+
+        logger.info('[MasterPortalClient] Fallback LLM success:', {
+          provider: fallbackResult.provider,
+          model: fallbackResult.model,
+        });
+
+        return {
+          response: fallbackResult.response,
+          tokensUsed: fallbackResult.tokensUsed,
+          conversationId: options.conversationId,
+          usedFallback: true,
+        };
+      } catch (fallbackError) {
+        logger.error('[MasterPortalClient] Fallback LLM also failed:', getErrorMessage(fallbackError));
+        throw error; // Re-throw original error
+      }
     }
+  }
+
+  /**
+   * Generate a simplified system prompt for fallback mode
+   * Used when uaa2-service is unavailable
+   */
+  private generateFallbackSystemPrompt(mode?: string): string {
+    const basePrompt = `You are Infinity Assistant, an AI assistant focused on helping users with software development, research, and general questions.
+
+You are currently running in fallback mode due to temporary service connectivity issues. Some advanced features may be limited.
+
+Core Guidelines:
+- Be helpful, accurate, and concise
+- Provide practical solutions and code examples when relevant
+- Acknowledge limitations honestly
+- Maintain professional and friendly communication`;
+
+    const modePrompts: Record<string, string> = {
+      search: `
+
+[SEARCH MODE]
+Focus on providing information, explanations, and research assistance.
+- Answer questions thoroughly but concisely
+- Cite general best practices when applicable
+- Suggest further research directions when appropriate`,
+
+      assist: `
+
+[ASSIST MODE]
+Help users with coding, problem-solving, and general assistance.
+- Provide working code examples when relevant
+- Explain your reasoning
+- Offer alternatives when multiple approaches exist`,
+
+      build: `
+
+[BUILD MODE]
+Guide users on architecture, design, and implementation.
+- Focus on architectural patterns and best practices
+- Provide scaffolding and structure recommendations
+- Consider scalability and maintainability`,
+    };
+
+    return basePrompt + (modePrompts[mode || 'assist'] || modePrompts.assist);
   }
 
   /**
@@ -306,11 +459,28 @@ export class MasterPortalClient {
   /**
    * Get current endpoint health status
    */
-  getHealthStatus(): { primary: EndpointHealth; backup: EndpointHealth | null } {
+  getHealthStatus(): {
+    primary: EndpointHealth;
+    aiWorkspace: EndpointHealth | null;
+    backup: EndpointHealth | null;
+    allEndpoints: EndpointHealth[];
+  } {
     return {
       primary: this.endpointHealth.get(this.primaryUrl)!,
-      backup: this.backupUrl ? this.endpointHealth.get(this.backupUrl) || null : null,
+      aiWorkspace: this.aiWorkspaceUrl ? this.endpointHealth.get(this.aiWorkspaceUrl) || null : null,
+      backup: this.backupUrl && this.backupUrl !== this.aiWorkspaceUrl
+        ? this.endpointHealth.get(this.backupUrl) || null
+        : null,
+      allEndpoints: this.getOrderedEndpoints(),
     };
+  }
+
+  /**
+   * Check if any endpoint with MCP support is available
+   */
+  hasMCPSupport(): boolean {
+    const orderedEndpoints = this.getOrderedEndpoints();
+    return orderedEndpoints.some(e => e.healthy && e.supportsMCP);
   }
 }
 

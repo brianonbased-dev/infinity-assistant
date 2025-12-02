@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { generatePreferencesPrompt, UserPreferences } from '@/hooks/useLocalPreferences';
-import { type UserTier, isModeAllowedForTier } from '@/types/agent-capabilities';
+import { type UserTier, isModeAllowedForTier, hasBuilderAccess } from '@/types/agent-capabilities';
 import { useFreemiumDebounced } from '@/hooks/useFreemium';
 import { FreemiumOfferCard, FreemiumResponse } from '@/components/FreemiumOffer';
 
@@ -65,15 +65,18 @@ interface UnifiedSearchBarProps {
 }
 
 export default function UnifiedSearchBar({
-  initialMode = 'search', // Default to search for free users
+  initialMode = 'assist', // Default to assist - conversation is always available
   initialConversationId,
   onModeChange,
   userPreferences,
   userTier = 'free', // Default to free tier
   onUpgradeClick,
 }: UnifiedSearchBarProps) {
-  // Set initial mode based on tier - free users default to search
-  const effectiveInitialMode = userTier === 'free' ? 'search' : initialMode;
+  // Assist mode (conversation) is ALWAYS available to all users
+  // Only Build mode is restricted to builder_pro+
+  const effectiveInitialMode = initialMode === 'build' && !hasBuilderAccess(userTier)
+    ? 'assist'
+    : initialMode;
   const [mode, setMode] = useState<SearchMode>(effectiveInitialMode);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -590,6 +593,8 @@ export default function UnifiedSearchBar({
   };
 
   // Mode configuration with tier requirements
+  // IMPORTANT: Conversation (Assist) is ALWAYS available - it's our way in the door
+  // per RATE_LIMITS philosophy in agent-capabilities.ts
   const modeConfig = {
     search: {
       icon: Search,
@@ -606,8 +611,8 @@ export default function UnifiedSearchBar({
       color: 'purple',
       description: 'Get intelligent help and answers',
       hint: 'Conversation + Knowledge + Memory',
-      requiredTier: 'assistant_pro' as UserTier,
-      upgradeMessage: 'Upgrade to Assistant Pro for AI conversations',
+      requiredTier: 'free' as UserTier, // ALWAYS available - conversation is our way in
+      upgradeMessage: null, // No upgrade needed - always available
     },
     build: {
       icon: Code,
