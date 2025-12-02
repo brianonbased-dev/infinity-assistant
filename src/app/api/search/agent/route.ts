@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withOptionalRateLimit } from '@/middleware/apiRateLimit';
 import { UserTier } from '@/types/agent-capabilities';
 import logger from '@/utils/logger';
+import { getAssistantKnowledgeService } from '@/lib/knowledge/AssistantKnowledgeService';
 
 type SearchProtocol = 'quick' | 'standard' | 'deep' | 'comprehensive';
 
@@ -392,14 +393,68 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     // Fallback: Use local AssistantKnowledgeService (embedded knowledge - always works)
-    const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
-    const knowledgeService = getAssistantKnowledgeService();
+    let searchResult;
+    try {
+      const knowledgeService = getAssistantKnowledgeService();
+      searchResult = await knowledgeService.searchKnowledge(query.trim(), {
+        maxWisdom: Math.min(limit, 10),
+        maxPatterns: Math.min(limit, 10),
+        maxGotchas: Math.min(limit, 5),
+      });
+    } catch (knowledgeError) {
+      logger.error('[Agent Search API] Knowledge service error:', knowledgeError);
 
-    const searchResult = await knowledgeService.searchKnowledge(query.trim(), {
-      maxWisdom: Math.min(limit, 10),
-      maxPatterns: Math.min(limit, 10),
-      maxGotchas: Math.min(limit, 5),
-    });
+      // Ultimate fallback: return empty results with gap capture
+      const gapUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.infinityassistant.io'}/api/knowledge/gap`;
+      try {
+        const gapResult = await fetch(gapUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query.trim(),
+            userId,
+            source: 'agent_search_fallback',
+          }),
+        });
+
+        if (gapResult.ok) {
+          const gapResponse = await gapResult.json();
+          return NextResponse.json({
+            success: true,
+            query: query.trim(),
+            protocol,
+            results: { wisdom: [], patterns: [], gotchas: [] },
+            counts: { total: 0, wisdom: 0, patterns: 0, gotchas: 0 },
+            metadata: {
+              searchTimeMs: Date.now() - startTime,
+              sources: ['gap-capture'],
+              cacheHit: false,
+              protocolUsed: protocol,
+            },
+            gapCaptured: true,
+            generatedAnswer: gapResponse.response,
+          }, { status: 200 });
+        }
+      } catch (gapError) {
+        logger.error('[Agent Search API] Gap capture also failed:', gapError);
+      }
+
+      // If even gap capture fails, return minimal response
+      return NextResponse.json({
+        success: true,
+        query: query.trim(),
+        protocol,
+        results: { wisdom: [], patterns: [], gotchas: [] },
+        counts: { total: 0, wisdom: 0, patterns: 0, gotchas: 0 },
+        metadata: {
+          searchTimeMs: Date.now() - startTime,
+          sources: ['none'],
+          cacheHit: false,
+          protocolUsed: protocol,
+        },
+        message: 'No knowledge available. Please try again later.',
+      }, { status: 200 });
+    }
 
     // Convert to agent search format
     const wisdomItems = searchResult.wisdom.map((item) => ({
@@ -571,14 +626,31 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
     }
 
     // Fallback to local embedded knowledge (always works)
-    const { getAssistantKnowledgeService } = await import('@/lib/knowledge/AssistantKnowledgeService');
-    const knowledgeService = getAssistantKnowledgeService();
-
-    const searchResult = await knowledgeService.searchKnowledge(trimmedQuery, {
-      maxWisdom: Math.min(limit, 5),
-      maxPatterns: Math.min(limit, 5),
-      maxGotchas: Math.min(limit, 3),
-    });
+    let searchResult;
+    try {
+      const knowledgeService = getAssistantKnowledgeService();
+      searchResult = await knowledgeService.searchKnowledge(trimmedQuery, {
+        maxWisdom: Math.min(limit, 5),
+        maxPatterns: Math.min(limit, 5),
+        maxGotchas: Math.min(limit, 3),
+      });
+    } catch (knowledgeError) {
+      logger.warn('[Agent Search API GET] Knowledge service unavailable:', knowledgeError);
+      // Return empty results for autocomplete
+      return NextResponse.json({
+        success: true,
+        query: trimmedQuery,
+        protocol,
+        results: { wisdom: [], patterns: [], gotchas: [] },
+        counts: { total: 0, wisdom: 0, patterns: 0, gotchas: 0 },
+        metadata: {
+          searchTimeMs: Date.now() - startTime,
+          sources: [],
+          cacheHit: false,
+          protocolUsed: protocol,
+        },
+      }, { status: 200 });
+    }
 
     const searchTime = Date.now() - startTime;
 
