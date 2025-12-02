@@ -786,7 +786,9 @@ export class ThoughtKnowledgeConnector {
 
       const retrievals: KnowledgeRetrieval[] = [];
 
-      const sourcePromises = config.sources.map(source =>
+      // Filter out 'external' sources since retrieveFromSource only handles local sources
+      const localSources = config.sources.filter((s): s is LocalSource => s !== 'external');
+      const sourcePromises = localSources.map(source =>
         this.retrieveFromSource(userId, source, pattern, config.maxResults)
       );
 

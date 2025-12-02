@@ -776,7 +776,6 @@ export class UnifiedBuildOrchestrator {
           duration: 300,
           aggregation: 'avg',
         },
-        notifications: [],
       });
       alerts.push(errorAlert);
 
@@ -790,7 +789,6 @@ export class UnifiedBuildOrchestrator {
           duration: 60,
           aggregation: 'p95',
         },
-        notifications: [],
       });
       alerts.push(latencyAlert);
 

@@ -5,6 +5,11 @@
  *
  * Public-facing AI assistant powered by InfinityAssistant.io
  * Features: Search, Assist, Build
+ *
+ * Onboarding Flow:
+ * 1. ProductSelector - Choose Assistant vs Builder
+ * 2. AssistantOnboarding OR BuilderOnboarding based on choice
+ * 3. Main app experience
  */
 
 import { useState, useEffect, Suspense } from 'react';
@@ -14,20 +19,27 @@ import { EmailAuth } from '@/components/EmailAuth';
 import logger from '@/utils/logger';
 import UnifiedSearchBar from '@/components/UnifiedSearchBar';
 import { BuilderOnboarding, UserPreferences } from '@/components/BuilderOnboarding';
+import { AssistantOnboarding, CompanionPreferences } from '@/components/AssistantOnboarding';
+import { ProductSelector, ProductChoice } from '@/components/ProductSelector';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useLocalPreferences } from '@/hooks/useLocalPreferences';
 import { CyberMondayCountdown } from '@/components/CyberMondayCountdown';
+import { demoWorkspaceStorage } from '@/services/DemoWorkspaceStorage';
+import { UserTier } from '@/types/agent-capabilities';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [showChat, setShowChat] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProductSelector, setShowProductSelector] = useState(false);
+  const [showAssistantOnboarding, setShowAssistantOnboarding] = useState(false);
+  const [showBuilderOnboarding, setShowBuilderOnboarding] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductChoice | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [userId, setUserId] = useState<string>('');
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-  const [userTier, setUserTier] = useState<'free' | 'pro' | 'business' | 'enterprise'>('free');
+  const [userTier, setUserTier] = useState<UserTier>('free');
 
   // Handle upgrade button click - navigate to pricing page
   const handleUpgradeClick = () => {
@@ -97,11 +109,17 @@ function InfinityAssistantContent() {
     setUserId(userIdValue);
 
     // Local-first onboarding check
-    // Only show onboarding if no local preferences exist
+    // Show product selector first, then appropriate onboarding
     const checkOnboarding = async () => {
       try {
         // Wait for local preferences to load first
         if (preferencesLoading) return;
+
+        // Check if user has already selected a product
+        const savedProduct = localStorage.getItem('infinity_selected_product') as ProductChoice | null;
+        if (savedProduct) {
+          setSelectedProduct(savedProduct);
+        }
 
         // If user has local preferences, skip onboarding
         if (hasLocalOnboarding) {
@@ -116,7 +134,8 @@ function InfinityAssistantContent() {
         if (response.ok) {
           const data = await response.json();
           if (data.needsOnboarding) {
-            setShowOnboarding(true);
+            // Show product selector first for new users
+            setShowProductSelector(true);
           } else if (data.preferences) {
             // Load database preferences to local storage
             savePreferences(data.preferences);
@@ -161,39 +180,123 @@ function InfinityAssistantContent() {
     );
   }
 
-  // Show onboarding if needed
-  if (showOnboarding && userId) {
+  // Handle product selection
+  const handleProductSelect = (product: ProductChoice) => {
+    setSelectedProduct(product);
+    localStorage.setItem('infinity_selected_product', product);
+    setShowProductSelector(false);
+
+    // Both products start with Assistant onboarding
+    // Builder users get Assistant for free, so they complete Assistant onboarding first
+    setShowAssistantOnboarding(true);
+  };
+
+  // Handle assistant onboarding completion
+  const handleAssistantOnboardingComplete = (companionPrefs: CompanionPreferences) => {
+    // Convert companion preferences to user preferences format
+    const userPrefs: UserPreferences = {
+      role: companionPrefs.mode === 'professional' ? 'other' : 'other',
+      experienceLevel: '',
+      primaryGoals: [],
+      preferredMode: 'assist',
+      interests: companionPrefs.interests,
+      customInterests: companionPrefs.customInterests,
+      communicationStyle: companionPrefs.communicationStyle === 'casual' ? 'conversational' :
+                          companionPrefs.communicationStyle === 'formal' ? 'concise' : 'conversational',
+      workflowPhases: ['research'],
+      preferredLanguage: companionPrefs.preferredLanguage,
+    };
+
+    savePreferences(userPrefs);
+    setUserPreferences(userPrefs);
+    setShowAssistantOnboarding(false);
+
+    // Save companion-specific preferences separately
+    localStorage.setItem('infinity_companion_prefs', JSON.stringify(companionPrefs));
+
+    // Create a default workspace for the user at signup
+    // All users get a workspace when they sign up
+    const userName = companionPrefs.name || undefined;
+    demoWorkspaceStorage.ensureDefaultWorkspace(userName, selectedProduct || 'assistant');
+    logger.info('[InfinityAssistantPage] Created default workspace for user');
+
+    if (syncEnabled) {
+      syncToDatabase(userId).catch((err) =>
+        logger.error('[InfinityAssistantPage] Failed to sync preferences:', err)
+      );
+    }
+
+    // If user selected Builder, show Builder onboarding next
+    // Otherwise show the assistant chat
+    if (selectedProduct === 'builder') {
+      setShowBuilderOnboarding(true);
+    } else {
+      setShowChat(true);
+      router.push('/?view=chat', { scroll: false });
+    }
+  };
+
+  // Handle builder onboarding completion
+  const handleBuilderOnboardingComplete = (preferences: UserPreferences) => {
+    savePreferences(preferences);
+    setUserPreferences(preferences);
+    setShowBuilderOnboarding(false);
+
+    if (syncEnabled) {
+      syncToDatabase(userId).catch((err) =>
+        logger.error('[InfinityAssistantPage] Failed to sync preferences:', err)
+      );
+    }
+
+    // Navigate to builder or show chat
+    const view = searchParams.get('view');
+    if (view === 'chat') {
+      setShowChat(true);
+      router.push('/?view=chat', { scroll: false });
+    } else {
+      // For builder selection, redirect to builder page
+      router.push('/builder');
+    }
+  };
+
+  // Show product selector for new users
+  if (showProductSelector && userId) {
+    return (
+      <ProductSelector
+        onSelect={handleProductSelect}
+        onSkip={() => {
+          setShowProductSelector(false);
+          // Default to assistant experience
+          handleProductSelect('assistant');
+        }}
+      />
+    );
+  }
+
+  // Show Assistant onboarding
+  if (showAssistantOnboarding && userId) {
+    return (
+      <AssistantOnboarding
+        userId={userId}
+        onComplete={handleAssistantOnboardingComplete}
+        onSkip={() => {
+          setShowAssistantOnboarding(false);
+          setShowChat(true);
+          router.push('/?view=chat', { scroll: false });
+        }}
+      />
+    );
+  }
+
+  // Show Builder onboarding
+  if (showBuilderOnboarding && userId) {
     return (
       <BuilderOnboarding
         userId={userId}
-        onComplete={(preferences) => {
-          // Save to local storage first (local-first)
-          savePreferences(preferences);
-          setUserPreferences(preferences);
-          setShowOnboarding(false);
-
-          // Optionally sync to database if enabled
-          if (syncEnabled) {
-            syncToDatabase(userId).catch((err) =>
-              logger.error('[InfinityAssistantPage] Failed to sync preferences:', err)
-            );
-          }
-
-          // If chat view was requested, show it after onboarding
-          const view = searchParams.get('view');
-          if (view === 'chat') {
-            setShowChat(true);
-            router.push('/?view=chat', { scroll: false });
-          }
-        }}
+        onComplete={handleBuilderOnboardingComplete}
         onSkip={() => {
-          setShowOnboarding(false);
-          // If chat view was requested, show it after skipping
-          const view = searchParams.get('view');
-          if (view === 'chat') {
-            setShowChat(true);
-            router.push('/?view=chat', { scroll: false });
-          }
+          setShowBuilderOnboarding(false);
+          router.push('/builder');
         }}
       />
     );

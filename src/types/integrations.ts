@@ -36,7 +36,11 @@ export type IntegrationProvider =
   | 'netlify'
   | 'figma'
   | 'linear'
-  | 'jira';
+  | 'jira'
+  // Enterprise/WhiteGlove service providers
+  | 'mongodb'
+  | 'redis'
+  | 'digitalocean';
 
 export type IntegrationCategory =
   | 'database'
@@ -102,6 +106,9 @@ export type IntegrationCapability =
   | 'database_write'
   | 'file_storage'
   | 'deploy'
+  | 'deployment'
+  | 'compute'
+  | 'authentication'
   | 'send_messages'
   | 'ai_inference'
   | 'payment_processing'
@@ -626,6 +633,45 @@ export const INTEGRATION_CONFIGS: Record<IntegrationProvider, IntegrationConfig>
     supportsBrowserAccess: true,
     docsUrl: 'https://developer.atlassian.com/cloud/jira/platform/',
     hasFreeOption: true,
+  },
+  mongodb: {
+    provider: 'mongodb',
+    name: 'MongoDB',
+    description: 'NoSQL document database',
+    icon: '🍃',
+    category: 'database',
+    authMethod: 'api_key',
+    capabilities: ['database_read', 'database_write'],
+    defaultScopes: [],
+    supportsBrowserAccess: false,
+    docsUrl: 'https://www.mongodb.com/docs/',
+    hasFreeOption: true,
+  },
+  redis: {
+    provider: 'redis',
+    name: 'Redis',
+    description: 'In-memory data structure store',
+    icon: '🔴',
+    category: 'database',
+    authMethod: 'api_key',
+    capabilities: ['database_read', 'database_write'],
+    defaultScopes: [],
+    supportsBrowserAccess: false,
+    docsUrl: 'https://redis.io/docs/',
+    hasFreeOption: true,
+  },
+  digitalocean: {
+    provider: 'digitalocean',
+    name: 'DigitalOcean',
+    description: 'Cloud infrastructure provider',
+    icon: '🌊',
+    category: 'hosting',
+    authMethod: 'api_key',
+    capabilities: ['deployment', 'compute'],
+    defaultScopes: [],
+    supportsBrowserAccess: true,
+    docsUrl: 'https://docs.digitalocean.com/',
+    hasFreeOption: false,
   },
 };
 

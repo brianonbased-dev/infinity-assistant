@@ -421,7 +421,7 @@ export class GMIntegrationService {
       accessToken,
       `/vehicles/${vin}/commands/${commandId}/status`
     );
-    return response as GMCommandResponse;
+    return response as unknown as GMCommandResponse;
   }
 
   // ==========================================================================

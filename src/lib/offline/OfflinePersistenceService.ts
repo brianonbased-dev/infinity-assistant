@@ -107,7 +107,7 @@ export interface OfflineKnowledge {
 export interface SyncQueueItem {
   id: string;
   operation: 'create' | 'update' | 'delete';
-  store: keyof typeof STORES;
+  store: (typeof STORES)[keyof typeof STORES];
   data: unknown;
   createdAt: string;
   attempts: number;
@@ -596,7 +596,7 @@ export class OfflinePersistenceService {
 
   private async queueSync(
     operation: SyncQueueItem['operation'],
-    store: keyof typeof STORES,
+    store: (typeof STORES)[keyof typeof STORES],
     data: unknown
   ): Promise<void> {
     const item: SyncQueueItem = {

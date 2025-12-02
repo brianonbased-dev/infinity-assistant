@@ -434,7 +434,7 @@ export class TeslaIntegrationService {
     if (cached) return cached;
 
     const response = await this.apiRequest(accessToken, '/api/1/vehicles');
-    const vehicles = response.response as TeslaVehicle[];
+    const vehicles = (response.response as unknown) as TeslaVehicle[];
 
     this.setCache(vehicleListCache, cacheKey, vehicles);
     return vehicles;
@@ -680,7 +680,7 @@ export class TeslaIntegrationService {
           'POST'
         );
 
-        const vehicle = response.response as TeslaVehicle;
+        const vehicle = (response.response as unknown) as TeslaVehicle;
         if (vehicle.state === 'online') {
           logger.info('[Tesla] Vehicle awake', {
             vehicleId,
@@ -926,8 +926,9 @@ export class TeslaIntegrationService {
     const sites: TeslaChargingStation[] = [];
 
     // Superchargers
-    if (response.response.superchargers) {
-      for (const sc of response.response.superchargers) {
+    const responseData = response.response as { superchargers?: unknown[]; destination_charging?: unknown[] };
+    if (responseData.superchargers) {
+      for (const sc of responseData.superchargers as Array<{ location: { lat: number; long: number }; name: string; distance_miles: number; available_stalls?: number; total_stalls?: number; site_closed?: boolean }>) {
         sites.push({
           location: { lat: sc.location.lat, long: sc.location.long },
           name: sc.name,
@@ -941,8 +942,8 @@ export class TeslaIntegrationService {
     }
 
     // Destination chargers
-    if (response.response.destination_charging) {
-      for (const dc of response.response.destination_charging) {
+    if (responseData.destination_charging) {
+      for (const dc of responseData.destination_charging as Array<{ location: { lat: number; long: number }; name: string; distance_miles: number }>) {
         sites.push({
           location: { lat: dc.location.lat, long: dc.location.long },
           name: dc.name,
@@ -1109,9 +1110,10 @@ export class TeslaIntegrationService {
     try {
       const response = await this.apiRequest(accessToken, endpoint, 'POST', params);
 
+      const commandResponse = response.response as { result?: boolean; reason?: string } | undefined;
       return {
-        result: response.response?.result ?? true,
-        reason: response.response?.reason,
+        result: commandResponse?.result ?? true,
+        reason: commandResponse?.reason,
       };
     } catch (error) {
       logger.error('[Tesla] Command failed', { command, error });

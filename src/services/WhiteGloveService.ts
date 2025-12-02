@@ -157,6 +157,9 @@ const PROVIDER_VARIABLE_MAP: Record<IntegrationProvider, string[]> = {
   notion: ['NOTION_API_KEY', 'NOTION_DATABASE_ID'],
   linear: ['LINEAR_API_KEY'],
   jira: ['JIRA_API_TOKEN', 'JIRA_BASE_URL'],
+  firebase: ['FIREBASE_PROJECT_ID', 'FIREBASE_PRIVATE_KEY', 'FIREBASE_CLIENT_EMAIL'],
+  render: ['RENDER_API_KEY'],
+  netlify: ['NETLIFY_AUTH_TOKEN', 'NETLIFY_SITE_ID'],
 };
 
 /**
@@ -534,7 +537,7 @@ class WhiteGloveServiceImpl {
       case 'discord':
         vars['DISCORD_BOT_TOKEN'] = token;
         if (integration?.metadata?.extra?.clientId) {
-          vars['DISCORD_CLIENT_ID'] = integration.metadata.extra.clientId;
+          vars['DISCORD_CLIENT_ID'] = integration.metadata.extra.clientId as string;
         }
         break;
 

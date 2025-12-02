@@ -128,7 +128,7 @@ export interface AlertCondition {
   operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte';
   threshold: number;
   duration?: number; // seconds to sustain condition
-  aggregation?: 'avg' | 'max' | 'min' | 'sum';
+  aggregation?: 'avg' | 'max' | 'min' | 'sum' | 'p95' | 'p99';
 }
 
 export interface AlertNotification {
@@ -647,7 +647,7 @@ export class MonitoringService {
       id: alertId,
       status: 'resolved',
       triggeredAt: '',
-      notifications: config.notifications || [],
+      notifications: [],
       history: [],
     };
 

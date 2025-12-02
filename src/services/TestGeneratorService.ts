@@ -259,6 +259,7 @@ class CodeAnalyzer {
         methods,
         properties: [],
         exported,
+        constructor: undefined,
       });
     }
 
@@ -312,6 +313,7 @@ class CodeAnalyzer {
         methods: [],
         properties: [],
         exported: !match[1].startsWith('_'),
+        constructor: undefined,
       });
     }
 

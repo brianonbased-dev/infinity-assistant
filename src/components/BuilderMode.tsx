@@ -65,12 +65,15 @@ import {
   type AgentConfig,
   type WorkspaceSpecification,
 } from '@/services/BuilderOnboardingClient';
+import { demoWorkspaceStorage } from '@/services/DemoWorkspaceStorage';
 
 interface BuilderModeProps {
   onBuildComplete?: (workspaceId: string) => void;
   onCancel?: () => void;
   /** User's current token balance */
   userTokenBalance?: number;
+  /** Whether in demo mode (free users preview without building) */
+  isDemoMode?: boolean;
 }
 
 type BuilderStage =
@@ -91,6 +94,7 @@ export default function BuilderMode({
   onBuildComplete,
   onCancel,
   userTokenBalance = 1000, // Default for development
+  isDemoMode = false,
 }: BuilderModeProps) {
   const router = useRouter();
 
@@ -258,6 +262,32 @@ export default function BuilderMode({
 
       setWorkspaceSpec(result.specification);
 
+      // DEMO MODE: Save to localStorage and complete without building
+      if (isDemoMode) {
+        const now = new Date();
+        // Create a DreamBoard-like object from conversation data for storage
+        const dreamBoardFromConversation: DreamBoard = {
+          projectName: data.projectName || selectedTemplate.name.toLowerCase().replace(/\s+/g, '-'),
+          tagline: data.tagline || '',
+          items: [
+            ...data.features.map((f, i) => ({ id: `f${i}`, content: f, category: 'feature' as const, priority: 'must-have' as const, createdAt: now })),
+            ...data.stylePreferences.map((s, i) => ({ id: `s${i}`, content: s, category: 'style' as const, priority: 'nice-to-have' as const, createdAt: now })),
+            ...data.integrations.map((int, i) => ({ id: `i${i}`, content: int, category: 'integration' as const, priority: 'must-have' as const, createdAt: now })),
+          ],
+          inspirations: [],
+        };
+
+        const savedWorkspace = demoWorkspaceStorage.createFromDreamBoard(
+          dreamBoardFromConversation.projectName,
+          experienceLevel,
+          dreamBoardFromConversation,
+          result.specification
+        );
+        setStage('complete');
+        onBuildComplete?.(savedWorkspace.id);
+        return;
+      }
+
       // Easy mode: Start building immediately - companion handles everything
       setProjectName(result.specification.projectName);
       setStage('growing');
@@ -273,7 +303,7 @@ export default function BuilderMode({
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedTemplate, experienceLevel, builderClient, startBuild]);
+  }, [selectedTemplate, experienceLevel, builderClient, startBuild, isDemoMode, onBuildComplete]);
 
   // Handle back from conversation to experience level
   const handleBackFromConversation = useCallback(() => {
@@ -313,6 +343,19 @@ export default function BuilderMode({
 
       setWorkspaceSpec(result.specification);
 
+      // DEMO MODE: Save to localStorage and complete without building
+      if (isDemoMode) {
+        const savedWorkspace = demoWorkspaceStorage.createFromDreamBoard(
+          board.projectName,
+          experienceLevel,
+          board,
+          result.specification
+        );
+        setStage('complete');
+        onBuildComplete?.(savedWorkspace.id);
+        return;
+      }
+
       // For Easy mode, go straight to building
       // For Medium/Experienced, show setup-choice for additional options
       if (experienceLevel === 'easy') {
@@ -335,7 +378,7 @@ export default function BuilderMode({
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedTemplate, experienceLevel, builderClient, startBuild]);
+  }, [selectedTemplate, experienceLevel, builderClient, startBuild, isDemoMode, onBuildComplete]);
 
   // Handle back from experience level to template selection
   const handleBackFromExperienceLevel = useCallback(() => {
@@ -921,17 +964,30 @@ export default function BuilderMode({
       {stage === 'complete' && (
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="text-center space-y-4 animate-fade-in">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 mb-4 animate-scale-in">
+            <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 animate-scale-in ${
+              isDemoMode
+                ? 'bg-gradient-to-br from-yellow-500 to-amber-600'
+                : 'bg-gradient-to-br from-green-500 to-emerald-600'
+            }`}>
               <Sparkles className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-white">
-              Your creation is complete!
+              {isDemoMode ? 'Your workspace has been saved!' : 'Your creation is complete!'}
             </h2>
             <p className="text-gray-400 max-w-md">
-              {selectedTemplate?.name || projectName} has been successfully built and customized.
-              {editorConfig?.template && ` Using the ${editorConfig.template} template.`}
+              {isDemoMode ? (
+                <>
+                  {selectedTemplate?.name || projectName} has been saved to your workspace folder.
+                  Upgrade to Builder Pro to bring it to life!
+                </>
+              ) : (
+                <>
+                  {selectedTemplate?.name || projectName} has been successfully built and customized.
+                  {editorConfig?.template && ` Using the ${editorConfig.template} template.`}
+                </>
+              )}
             </p>
-            {requirementsData && (
+            {requirementsData && !isDemoMode && (
               <div className="text-sm text-gray-500">
                 Tokens used: ~{requirementsData.estimatedTokens}
               </div>
@@ -943,8 +999,25 @@ export default function BuilderMode({
               </div>
             )}
 
+            {/* Demo Mode: Show upgrade CTA */}
+            {isDemoMode && (
+              <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl animate-fade-in-up">
+                <p className="text-sm text-yellow-300 mb-3">
+                  Your workspace design is saved! Upgrade to Builder Pro to start building.
+                </p>
+                <a
+                  href="/pricing?tab=builder"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-white font-medium rounded-xl transition-all shadow-lg hover:shadow-yellow-500/25"
+                >
+                  <Crown className="w-5 h-5" />
+                  Upgrade to Build
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            )}
+
             {/* Developer Mode: Show dashboard option */}
-            {experienceLevel === 'experienced' && workspace && (
+            {!isDemoMode && experienceLevel === 'experienced' && workspace && (
               <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-fade-in-up">
                 <p className="text-sm text-purple-300 mb-3">
                   As a Developer Mode user, you have access to advanced tools and API documentation.
@@ -963,17 +1036,19 @@ export default function BuilderMode({
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
-              {/* View Dashboard - Available to all levels */}
-              <button
-                type="button"
-                onClick={() => router.push(`/dashboard${workspace ? `?workspace=${workspace.id}` : ''}`)}
-                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center gap-2"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                View Dashboard
-              </button>
+              {/* View Dashboard - Available to all levels (not in demo mode) */}
+              {!isDemoMode && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/dashboard${workspace ? `?workspace=${workspace.id}` : ''}`)}
+                  className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-colors flex items-center gap-2"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  View Dashboard
+                </button>
+              )}
 
-              {/* Start Another Build */}
+              {/* Start Another Build / Design Another */}
               <button
                 type="button"
                 onClick={() => {
@@ -995,7 +1070,7 @@ export default function BuilderMode({
                 className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-colors flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                Start Another Build
+                {isDemoMode ? 'Design Another Workspace' : 'Start Another Build'}
               </button>
             </div>
           </div>

@@ -68,6 +68,7 @@ export interface AccountRequirement {
   provider: string;
   signupUrl: string;
   description: string;
+  purpose?: string; // Short explanation of why this account is needed
   required: boolean;
   freeAvailable: boolean;
   instructions: string[];

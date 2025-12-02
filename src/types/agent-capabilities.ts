@@ -35,7 +35,14 @@ export type UserTier =
   | 'builder_pro'       // Builder: Full Assistant + Build capabilities
   | 'builder_business'  // Builder: + Team features
   | 'builder_enterprise' // Builder: + White Glove
-  | 'master';           // Internal/Admin
+  | 'master'            // Internal/Admin
+  // Common aliases (for backwards compatibility and simpler subscription UI)
+  | 'pro'               // Alias for assistant_pro
+  | 'business'          // Alias for builder_business
+  | 'enterprise'        // Alias for builder_enterprise
+  | 'team'              // Alias for builder_business (team features)
+  | 'growth'            // PaymentBillingService tier
+  | 'scale';            // PaymentBillingService tier
 
 // Legacy aliases for backwards compatibility
 export type LegacyUserTier = 'free' | 'paid' | 'master';
@@ -44,28 +51,28 @@ export type LegacyUserTier = 'free' | 'paid' | 'master';
  * Check if user has Assistant tier (Pro or higher)
  */
 export function hasAssistantAccess(tier: UserTier): boolean {
-  return ['assistant_pro', 'builder_pro', 'builder_business', 'builder_enterprise', 'master'].includes(tier);
+  return ['assistant_pro', 'builder_pro', 'builder_business', 'builder_enterprise', 'master', 'pro', 'business', 'enterprise', 'team', 'growth', 'scale'].includes(tier);
 }
 
 /**
  * Check if user has Builder tier
  */
 export function hasBuilderAccess(tier: UserTier): boolean {
-  return ['builder_pro', 'builder_business', 'builder_enterprise', 'master'].includes(tier);
+  return ['builder_pro', 'builder_business', 'builder_enterprise', 'master', 'business', 'enterprise', 'team', 'growth', 'scale'].includes(tier);
 }
 
 /**
  * Check if user has Business tier (team features)
  */
 export function hasBusinessAccess(tier: UserTier): boolean {
-  return ['builder_business', 'builder_enterprise', 'master'].includes(tier);
+  return ['builder_business', 'builder_enterprise', 'master', 'business', 'enterprise', 'team'].includes(tier);
 }
 
 /**
  * Check if user has Enterprise tier (white glove)
  */
 export function hasEnterpriseAccess(tier: UserTier): boolean {
-  return ['builder_enterprise', 'master'].includes(tier);
+  return ['builder_enterprise', 'master', 'enterprise'].includes(tier);
 }
 
 export interface AgentExecutionContext {
