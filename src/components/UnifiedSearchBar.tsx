@@ -118,6 +118,67 @@ export default function UnifiedSearchBar({
   // Debounce input for autocomplete (300ms delay)
   const debouncedInput = useDebounce(input, 300);
 
+  // ============================================================================
+  // CONVERSATION PERSISTENCE (localStorage)
+  // ============================================================================
+  const STORAGE_KEY = 'infinity_conversation';
+
+  // Load persisted conversation on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Only restore if conversation is less than 24 hours old
+        const storedTime = new Date(parsed.updatedAt || 0).getTime();
+        const now = Date.now();
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
+        if (now - storedTime < maxAge) {
+          if (parsed.conversationId && !conversationId) {
+            setConversationId(parsed.conversationId);
+          }
+          if (parsed.messages && parsed.messages.length > 0 && messages.length === 0) {
+            setMessages(parsed.messages);
+            logger.debug('[UnifiedSearchBar] Restored conversation from localStorage', {
+              conversationId: parsed.conversationId,
+              messageCount: parsed.messages.length,
+            });
+          }
+        } else {
+          // Clear stale conversation
+          localStorage.removeItem(STORAGE_KEY);
+          logger.debug('[UnifiedSearchBar] Cleared stale conversation (>24h old)');
+        }
+      }
+    } catch (e) {
+      logger.warn('[UnifiedSearchBar] Failed to load persisted conversation:', e);
+    }
+  }, []); // Only run once on mount
+
+  // Save conversation to localStorage when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!conversationId && messages.length <= 1) return; // Don't save empty or welcome-only
+
+    try {
+      const toStore = {
+        conversationId,
+        messages: messages.slice(-50), // Keep last 50 messages
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+      logger.debug('[UnifiedSearchBar] Saved conversation to localStorage', {
+        conversationId,
+        messageCount: messages.length,
+      });
+    } catch (e) {
+      logger.warn('[UnifiedSearchBar] Failed to save conversation:', e);
+    }
+  }, [conversationId, messages]);
+
   // Auto-detect intent when input changes (with debounce)
   useEffect(() => {
     if (isAutoModeEnabled && debouncedInput.length > 3) {

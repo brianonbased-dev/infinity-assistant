@@ -48,13 +48,227 @@ const DEFAULT_PHASE_CONTEXT: PhaseContext = {
 };
 
 // ============================================================================
-// IN-MEMORY STORAGE
+// STORAGE LAYER (Supabase Primary + Local File Cache Fallback)
 // ============================================================================
 
 /**
- * In-memory conversation storage
- * In production, this would be backed by Supabase
+ * Tiered storage architecture:
+ * 1. In-memory cache (fastest, volatile)
+ * 2. Local file cache (fast, survives restarts in dev)
+ * 3. Supabase database (persistent, primary store)
+ *
+ * When database is offline, local cache becomes primary.
+ * Data syncs to database when connection is restored.
  */
+
+const memoryCache = new Map<string, { memory: ConversationMemory; cachedAt: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let isDbOnline = true;
+let pendingSync: ConversationMemory[] = [];
+
+// File-based cache for serverless environments (uses /tmp in Vercel)
+const LOCAL_CACHE_DIR = process.env.VERCEL ? '/tmp/infinity-cache' : './.cache/conversations';
+
+/**
+ * Get local file path for conversation
+ */
+function getLocalCachePath(conversationId: string): string {
+  return `${LOCAL_CACHE_DIR}/${conversationId}.json`;
+}
+
+/**
+ * Save to local file cache
+ */
+async function saveToLocalCache(memory: ConversationMemory): Promise<void> {
+  if (typeof window !== 'undefined') return; // Skip in browser
+
+  try {
+    const fs = await import('fs').then(m => m.promises);
+
+    // Ensure directory exists
+    await fs.mkdir(LOCAL_CACHE_DIR, { recursive: true }).catch(() => {});
+
+    const filePath = getLocalCachePath(memory.conversationId);
+    await fs.writeFile(filePath, JSON.stringify(memory, null, 2));
+  } catch {
+    // Silent fail - local cache is best-effort
+  }
+}
+
+/**
+ * Load from local file cache
+ */
+async function loadFromLocalCache(conversationId: string): Promise<ConversationMemory | null> {
+  if (typeof window !== 'undefined') return null; // Skip in browser
+
+  try {
+    const fs = await import('fs').then(m => m.promises);
+    const filePath = getLocalCachePath(conversationId);
+    const data = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(data) as ConversationMemory;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get Supabase client for persistence
+ */
+async function getSupabase() {
+  const { getSupabaseClient, TABLES } = await import('@/lib/supabase');
+  return { supabase: getSupabaseClient(), TABLES };
+}
+
+/**
+ * Sync pending changes to database when online
+ */
+async function syncPendingToDatabase(): Promise<void> {
+  if (pendingSync.length === 0) return;
+
+  try {
+    const { supabase, TABLES } = await getSupabase();
+
+    for (const memory of pendingSync) {
+      const record = {
+        conversation_id: memory.conversationId,
+        user_id: memory.userId,
+        active_memory: memory.activeMemory.slice(-30),
+        compressed_memory: memory.compressedMemory.slice(-10),
+        critical_facts: memory.criticalFacts,
+        user_context: memory.userContext,
+        phase_context: memory.phaseContext,
+        total_messages: memory.totalMessages,
+        updated_at: new Date().toISOString(),
+      };
+
+      await supabase
+        .from(TABLES.CONVERSATIONS)
+        .upsert(record, { onConflict: 'conversation_id' });
+    }
+
+    console.log(`[ConversationMemoryService] Synced ${pendingSync.length} pending conversations to database`);
+    pendingSync = [];
+    isDbOnline = true;
+  } catch (e) {
+    console.warn('[ConversationMemoryService] Database sync failed, will retry:', e);
+  }
+}
+
+/**
+ * Get memory from cache, local file, or database (in order of speed)
+ */
+async function getMemoryFromStore(conversationId: string): Promise<ConversationMemory | null> {
+  // 1. Check in-memory cache first (fastest)
+  const cached = memoryCache.get(conversationId);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+    return cached.memory;
+  }
+
+  // 2. Try Supabase if online
+  if (isDbOnline) {
+    try {
+      const { supabase, TABLES } = await getSupabase();
+      const { data, error } = await supabase
+        .from(TABLES.CONVERSATIONS)
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .single();
+
+      if (!error && data) {
+        const memory: ConversationMemory = {
+          conversationId: data.conversation_id,
+          userId: data.user_id,
+          activeMemory: data.active_memory || [],
+          compressedMemory: data.compressed_memory || [],
+          criticalFacts: data.critical_facts || [],
+          userContext: data.user_context || {},
+          phaseContext: data.phase_context || { ...DEFAULT_PHASE_CONTEXT },
+          createdAt: data.created_at,
+          lastActiveAt: data.updated_at,
+          totalMessages: data.total_messages || 0,
+        };
+
+        // Update caches
+        memoryCache.set(conversationId, { memory, cachedAt: Date.now() });
+        saveToLocalCache(memory).catch(() => {}); // Background save to local
+
+        return memory;
+      }
+    } catch (e) {
+      console.warn('[ConversationMemoryService] Database offline, using local cache:', e);
+      isDbOnline = false;
+      // Schedule retry
+      setTimeout(syncPendingToDatabase, 30000); // Retry in 30s
+    }
+  }
+
+  // 3. Fall back to local file cache
+  const localMemory = await loadFromLocalCache(conversationId);
+  if (localMemory) {
+    memoryCache.set(conversationId, { memory: localMemory, cachedAt: Date.now() });
+    return localMemory;
+  }
+
+  return null;
+}
+
+/**
+ * Save memory to all storage layers
+ */
+async function saveMemoryToStore(memory: ConversationMemory): Promise<void> {
+  // 1. Always update in-memory cache
+  memoryCache.set(memory.conversationId, { memory, cachedAt: Date.now() });
+
+  // 2. Always save to local file cache (fast, reliable)
+  saveToLocalCache(memory).catch(() => {});
+
+  // 3. Try to persist to Supabase
+  if (isDbOnline) {
+    try {
+      await persistToSupabase(memory);
+    } catch (e) {
+      console.warn('[ConversationMemoryService] Database save failed, queuing for sync:', e);
+      isDbOnline = false;
+      pendingSync.push(memory);
+      setTimeout(syncPendingToDatabase, 30000); // Retry in 30s
+    }
+  } else {
+    // Queue for later sync
+    const existingIdx = pendingSync.findIndex(m => m.conversationId === memory.conversationId);
+    if (existingIdx >= 0) {
+      pendingSync[existingIdx] = memory;
+    } else {
+      pendingSync.push(memory);
+    }
+  }
+}
+
+/**
+ * Persist memory to Supabase
+ */
+async function persistToSupabase(memory: ConversationMemory): Promise<void> {
+  const { supabase, TABLES } = await getSupabase();
+
+  const record = {
+    conversation_id: memory.conversationId,
+    user_id: memory.userId,
+    active_memory: memory.activeMemory.slice(-30),
+    compressed_memory: memory.compressedMemory.slice(-10),
+    critical_facts: memory.criticalFacts,
+    user_context: memory.userContext,
+    phase_context: memory.phaseContext,
+    total_messages: memory.totalMessages,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from(TABLES.CONVERSATIONS)
+    .upsert(record, { onConflict: 'conversation_id' });
+
+  if (error) throw error;
+}
+
+// Legacy in-memory store for backward compatibility
 const memoryStore = new Map<string, ConversationMemory>();
 
 // ============================================================================
@@ -251,15 +465,28 @@ class ConversationMemoryService implements IMemoryService {
     userId: string,
     userContext?: Partial<ConversationMemory['userContext']>
   ): Promise<ConversationMemory> {
-    const existing = memoryStore.get(conversationId);
+    // Try to load from Supabase first
+    const existing = await getMemoryFromStore(conversationId);
     if (existing) {
       // Update user context if provided
       if (userContext) {
         existing.userContext = { ...existing.userContext, ...userContext };
         existing.lastActiveAt = new Date().toISOString();
-        memoryStore.set(conversationId, existing);
+        await saveMemoryToStore(existing);
       }
       return existing;
+    }
+
+    // Also check legacy in-memory store
+    const legacyMemory = memoryStore.get(conversationId);
+    if (legacyMemory) {
+      if (userContext) {
+        legacyMemory.userContext = { ...legacyMemory.userContext, ...userContext };
+        legacyMemory.lastActiveAt = new Date().toISOString();
+      }
+      // Migrate to Supabase
+      await saveMemoryToStore(legacyMemory);
+      return legacyMemory;
     }
 
     const memory: ConversationMemory = {
@@ -275,7 +502,9 @@ class ConversationMemoryService implements IMemoryService {
       totalMessages: 0,
     };
 
+    // Save to both stores
     memoryStore.set(conversationId, memory);
+    await saveMemoryToStore(memory);
     return memory;
   }
 
@@ -286,7 +515,8 @@ class ConversationMemoryService implements IMemoryService {
     conversationId: string,
     entry: Omit<MemoryEntry, 'id' | 'createdAt'>
   ): Promise<void> {
-    let memory = memoryStore.get(conversationId);
+    // Try to get from Supabase first, then legacy store
+    let memory = await getMemoryFromStore(conversationId) || memoryStore.get(conversationId);
 
     if (!memory) {
       // Create new memory for unknown conversation
@@ -314,7 +544,9 @@ class ConversationMemoryService implements IMemoryService {
       await this.compress(conversationId);
     }
 
+    // Save to both stores
     memoryStore.set(conversationId, memory);
+    await saveMemoryToStore(memory);
   }
 
   /**
@@ -607,13 +839,28 @@ class ConversationMemoryService implements IMemoryService {
    */
   clearMemory(conversationId: string): void {
     memoryStore.delete(conversationId);
+    memoryCache.delete(conversationId);
+    // Note: We don't delete from Supabase to preserve history
   }
 
   /**
-   * Get memory (sync version for API)
+   * Get memory (sync version for API - checks cache first)
    */
   getMemory(conversationId: string): ConversationMemory | null {
+    // Check cache first (fast path)
+    const cached = memoryCache.get(conversationId);
+    if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+      return cached.memory;
+    }
+    // Fall back to legacy store
     return memoryStore.get(conversationId) || null;
+  }
+
+  /**
+   * Get memory async (fetches from Supabase if needed)
+   */
+  async getMemoryAsync(conversationId: string): Promise<ConversationMemory | null> {
+    return await getMemoryFromStore(conversationId) || memoryStore.get(conversationId) || null;
   }
 
   /**
@@ -621,6 +868,8 @@ class ConversationMemoryService implements IMemoryService {
    */
   updateMemory(conversationId: string, memory: ConversationMemory): void {
     memoryStore.set(conversationId, memory);
+    // Also save to Supabase asynchronously
+    saveMemoryToStore(memory).catch(() => {});
   }
 
   /**
