@@ -3,21 +3,24 @@
 /**
  * Unified Search Bar Component
  *
- * Subscription-aware interface for Infinity Assistant
+ * Intelligent interface for Infinity Assistant with AUTO-MODE DETECTION
  *
- * Tier-based access:
- * - FREE: Search only (basic knowledge base search)
- * - ASSISTANT_PRO: Search + Assist (full research + conversation)
- * - BUILDER_*: Search + Assist + Build (full capabilities)
+ * The assistant automatically detects user intent and routes appropriately:
+ * - Search queries → Knowledge base search
+ * - Conversations/help → AI conversation
+ * - Build requests → Code generation (if tier allows)
+ *
+ * Mode toggles are now OPTIONAL visual indicators, not required switches.
+ * The assistant "just works" regardless of which toggle is selected.
  *
  * Features:
- * - Mode toggle based on subscription tier
- * - Command shortcuts (/search, /assist, /build)
- * - Real-time suggestions and autocomplete
- * - Upgrade prompts for locked features
+ * - Auto-intent detection (search/assist/build)
+ * - Seamless mode switching based on query
+ * - Command shortcuts (/search, /assist, /build) still work
+ * - Visual mode indicator shows detected intent
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import logger from '@/utils/logger';
 import {
   Send,
@@ -31,12 +34,14 @@ import {
   XCircle,
   Lock,
   Crown,
+  Wand2,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { generatePreferencesPrompt, UserPreferences } from '@/hooks/useLocalPreferences';
 import { type UserTier, isModeAllowedForTier, hasBuilderAccess } from '@/types/agent-capabilities';
 import { useFreemiumDebounced } from '@/hooks/useFreemium';
 import { FreemiumOfferCard, FreemiumResponse } from '@/components/FreemiumOffer';
+import { getQueryIntentClassifier, type QueryIntent } from '@/services/QueryIntentClassifier';
 
 type SearchMode = 'search' | 'assist' | 'build';
 
@@ -62,6 +67,7 @@ interface UnifiedSearchBarProps {
   userPreferences?: UserPreferences | null;
   userTier?: UserTier; // Subscription tier determines available modes
   onUpgradeClick?: () => void; // Callback when user clicks upgrade
+  autoMode?: boolean; // Enable auto-mode detection (default: true)
 }
 
 export default function UnifiedSearchBar({
@@ -71,6 +77,7 @@ export default function UnifiedSearchBar({
   userPreferences,
   userTier = 'free', // Default to free tier
   onUpgradeClick,
+  autoMode = true, // Auto-mode detection enabled by default
 }: UnifiedSearchBarProps) {
   // Assist mode (conversation) is ALWAYS available to all users
   // Only Build mode is restricted to builder_pro+
@@ -94,14 +101,45 @@ export default function UnifiedSearchBar({
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
+  // Auto-mode detection state
+  const [detectedIntent, setDetectedIntent] = useState<QueryIntent | null>(null);
+  const [intentConfidence, setIntentConfidence] = useState<number>(0);
+  const [isAutoModeEnabled, setIsAutoModeEnabled] = useState(autoMode);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const suggestionsCacheRef = useRef<Map<string, Suggestion[]>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestAbortControllerRef = useRef<AbortController | null>(null);
 
+  // Intent classifier instance
+  const intentClassifier = useMemo(() => getQueryIntentClassifier(), []);
+
   // Debounce input for autocomplete (300ms delay)
   const debouncedInput = useDebounce(input, 300);
+
+  // Auto-detect intent when input changes (with debounce)
+  useEffect(() => {
+    if (isAutoModeEnabled && debouncedInput.length > 3) {
+      const classification = intentClassifier.classify(debouncedInput, {
+        currentMode: mode,
+        previousMessages: messages.slice(-3).map(m => m.content),
+      });
+
+      setDetectedIntent(classification.intent);
+      setIntentConfidence(classification.confidence);
+
+      // Log intent detection for debugging
+      logger.debug('[UnifiedSearchBar] Intent detected:', {
+        query: debouncedInput.substring(0, 50),
+        intent: classification.intent,
+        confidence: classification.confidence,
+      });
+    } else if (debouncedInput.length <= 3) {
+      setDetectedIntent(null);
+      setIntentConfidence(0);
+    }
+  }, [debouncedInput, isAutoModeEnabled, intentClassifier, mode, messages]);
 
   // Freemium offers for free tier users
   const freemium = useFreemiumDebounced('anonymous', 600); // 600ms debounce for offer check
@@ -374,12 +412,35 @@ export default function UnifiedSearchBar({
     // Create new abort controller for this request
     requestAbortControllerRef.current = new AbortController();
 
+    // Determine effective mode: use auto-detected intent if enabled, otherwise use selected mode
+    let effectiveMode: SearchMode = mode;
+    if (isAutoModeEnabled && detectedIntent && intentConfidence > 0.5) {
+      // Apply tier restrictions to detected intent
+      if (detectedIntent === 'build' && !hasBuilderAccess(userTier)) {
+        // Fall back to assist if user can't access build
+        effectiveMode = 'assist';
+      } else {
+        effectiveMode = detectedIntent;
+      }
+
+      // Update visual mode indicator if different
+      if (effectiveMode !== mode) {
+        setMode(effectiveMode);
+        onModeChange?.(effectiveMode);
+        logger.info('[UnifiedSearchBar] Auto-switched mode:', {
+          from: mode,
+          to: effectiveMode,
+          confidence: intentConfidence,
+        });
+      }
+    }
+
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toISOString(),
-      mode,
+      mode: effectiveMode,
     };
 
     // Add user message to UI immediately
@@ -388,18 +449,20 @@ export default function UnifiedSearchBar({
     setIsLoading(true);
     setError(null);
     setShowSuggestions(false);
+    setDetectedIntent(null); // Reset detected intent after send
+    setIntentConfidence(0);
 
     try {
-      // Determine API endpoint based on mode
+      // Determine API endpoint based on effective mode
       // Search mode uses agent search for efficient querying
       // Assist and Build modes use chat API for full conversation
-      const isSearchMode = mode === 'search';
+      const isSearchMode = effectiveMode === 'search';
       const apiEndpoint = isSearchMode ? '/api/search/agent' : '/api/chat';
 
       // Generate preferences context for personalization
       const preferencesContext = generatePreferencesPrompt(userPreferences || null);
 
-      // Build request body based on mode
+      // Build request body based on effective mode
       const requestBody = isSearchMode
         ? {
             query: userMessage.content,
@@ -411,7 +474,7 @@ export default function UnifiedSearchBar({
         : {
             message: userMessage.content,
             conversationId,
-            mode,
+            mode: effectiveMode,
             // Include preferences for AI personalization
             userContext: preferencesContext || undefined,
             preferences: userPreferences || undefined,
@@ -643,39 +706,74 @@ export default function UnifiedSearchBar({
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 to-black text-white">
-      {/* Mode Toggle Bar */}
+      {/* Mode Toggle Bar - Now optional with auto-detection */}
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Mode:</span>
+                {/* Auto-mode indicator */}
+                {isAutoModeEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAutoModeEnabled(!isAutoModeEnabled)}
+                    className="px-2 py-1 rounded-md bg-linear-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-300 text-xs flex items-center gap-1 hover:from-purple-500/30 hover:to-blue-500/30 transition-all"
+                    title="Auto-mode: I detect your intent automatically. Click to disable."
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    Auto
+                  </button>
+                )}
+                {!isAutoModeEnabled && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAutoModeEnabled(true)}
+                    className="px-2 py-1 rounded-md bg-gray-800 border border-gray-700 text-gray-500 text-xs flex items-center gap-1 hover:bg-gray-700 hover:text-gray-400 transition-all"
+                    title="Enable auto-mode detection"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    Auto
+                  </button>
+                )}
+
+                <span className="text-gray-600 text-xs">|</span>
+
                 {(['search', 'assist', 'build'] as SearchMode[]).map((m) => {
                   const config = modeConfig[m];
                   const Icon = config.icon;
                   const isActive = mode === m;
                   const isAvailable = isModeAvailable(m);
+                  const isDetected = isAutoModeEnabled && detectedIntent === m && intentConfidence > 0.5;
 
                   return (
                     <button
                       key={m}
                       onClick={() => handleTierAwareModeChange(m)}
-                      className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+                      className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all flex items-center gap-1.5 ${
                         isActive
                           ? m === 'search'
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                             : m === 'assist'
                               ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
                               : 'bg-green-600 text-white shadow-lg shadow-green-500/30'
-                          : isAvailable
-                            ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
-                            : 'bg-gray-900 text-gray-600 cursor-not-allowed border border-gray-800'
+                          : isDetected
+                            ? 'bg-gray-700 text-gray-200 ring-2 ring-purple-500/50'
+                            : isAvailable
+                              ? 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                              : 'bg-gray-900 text-gray-600 cursor-not-allowed border border-gray-800'
                       }`}
-                      title={isAvailable ? config.hint : config.upgradeMessage || 'Upgrade required'}
+                      title={
+                        isDetected
+                          ? `Detected: ${config.label} (${Math.round(intentConfidence * 100)}% confident)`
+                          : isAvailable
+                            ? config.hint
+                            : config.upgradeMessage || 'Upgrade required'
+                      }
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                       {config.label}
-                      {!isAvailable && <Lock className="w-3 h-3 ml-1" />}
+                      {!isAvailable && <Lock className="w-3 h-3" />}
+                      {isDetected && !isActive && <span className="text-[10px] text-purple-300">•</span>}
                     </button>
                   );
                 })}
@@ -690,20 +788,31 @@ export default function UnifiedSearchBar({
                   </span>
                 )}
                 {rateLimit && (
-                  <span className="text-gray-400">
+                  <span className="text-gray-400 text-xs">
                     {rateLimit.limit === -1
                       ? 'Unlimited'
-                      : `${rateLimit.remaining} / ${rateLimit.limit} remaining`}
+                      : `${rateLimit.remaining}/${rateLimit.limit}`}
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Mode Hint Bar */}
+            {/* Mode Hint Bar - Shows detected intent when auto-mode is on */}
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 text-gray-500">
-                <Sparkles className="w-3 h-3" />
-                <span>{currentModeConfig.hint}</span>
+                {isAutoModeEnabled && detectedIntent && intentConfidence > 0.5 ? (
+                  <>
+                    <Wand2 className="w-3 h-3 text-purple-400" />
+                    <span className="text-purple-300">
+                      Detected: {modeConfig[detectedIntent].label} ({Math.round(intentConfidence * 100)}%)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3" />
+                    <span>{currentModeConfig.hint}</span>
+                  </>
+                )}
               </div>
               {userTier === 'free' && (
                 <button
@@ -711,7 +820,7 @@ export default function UnifiedSearchBar({
                   className="text-purple-400 hover:text-purple-300 flex items-center gap-1"
                 >
                   <Crown className="w-3 h-3" />
-                  Upgrade for full access
+                  Upgrade
                 </button>
               )}
             </div>
