@@ -457,6 +457,52 @@ Guide users on architecture, design, and implementation.
   }
 
   /**
+   * Execute RPC call to UAA2 Master Portal
+   * Supports both single and batch RPC operations
+   */
+  async executeRpc<T = any>(
+    action: string,
+    params?: Record<string, any>
+  ): Promise<{ success: boolean; data?: T; error?: string; errorCode?: string }> {
+    try {
+      const response = await this.fetchWithFailover('/api/rpc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          params,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        return {
+          success: false,
+          error: error.error || error.message || `HTTP ${response.status}`,
+          errorCode: error.errorCode || 'RPC_ERROR',
+        };
+      }
+
+      const data = await response.json();
+      return {
+        success: data.success ?? true,
+        data: data.data,
+        error: data.error,
+        errorCode: data.errorCode,
+      };
+    } catch (error) {
+      logger.error('[MasterPortalClient] RPC error:', getErrorMessage(error));
+      return {
+        success: false,
+        error: getErrorMessage(error),
+        errorCode: 'NETWORK_ERROR',
+      };
+    }
+  }
+
+  /**
    * Get current endpoint health status
    */
   getHealthStatus(): {
