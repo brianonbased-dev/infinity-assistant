@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-12-04T17:49:43.768Z",
+  "speakers": {
+    "speaker_1764839056493_dc3r8": {
+      "id": "speaker_1764839056493_dc3r8",
+      "detectedLanguage": "en",
+      "communicationStyle": "casual",
+      "vocabularyLevel": "intermediate",
+      "formalityLevel": "formal",
+      "estimatedAge": "adult",
+      "messageCount": 1,
+      "firstSeen": "2025-12-04T09:04:16.493Z",
+      "lastSeen": "2025-12-04T09:04:16.493Z",
+      "confidence": 0.5,
+      "styleFingerprint": {
+        "avgWordLength": 5,
+        "avgMessageLength": 1,
+        "punctuationStyle": "minimal",
+        "emojiUsage": "none",
+        "greetingStyle": "hello",
+        "signaturePatterns": []
+      },
+      "interests": [],
+      "rememberedFacts": []
+    }
+  },
+  "familyMembers": []
+}
