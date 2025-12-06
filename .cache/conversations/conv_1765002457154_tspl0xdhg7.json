@@ -1,0 +1,25 @@
+{
+  "conversationId": "conv_1765002457154_tspl0xdhg7",
+  "userId": "anon_1765002456561_py8xegcsfp",
+  "activeMemory": [
+    {
+      "content": "Hello",
+      "type": "user",
+      "importance": "medium",
+      "id": "mem_1765002457517_tdy6s4z",
+      "createdAt": "2025-12-06T06:27:37.517Z"
+    }
+  ],
+  "compressedMemory": [],
+  "criticalFacts": [],
+  "userContext": {},
+  "phaseContext": {
+    "currentPhase": "intake",
+    "phaseStartedAt": "2025-12-06T06:27:36.535Z",
+    "phaseHistory": [],
+    "cycleCount": 0
+  },
+  "createdAt": "2025-12-06T06:27:37.335Z",
+  "lastActiveAt": "2025-12-06T06:27:37.517Z",
+  "totalMessages": 1
+}

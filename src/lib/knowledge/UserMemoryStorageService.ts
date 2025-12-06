@@ -235,6 +235,7 @@ function getStorageKey(userId: string, type: string): string {
  * Read local memory from localStorage (browser) or file (server)
  */
 async function readLocalMemory(userId: string): Promise<UserLocalMemory | null> {
+  // Browser environment - use localStorage only
   // Browser environment - use localStorage
   if (typeof window !== 'undefined') {
     try {
@@ -247,27 +248,8 @@ async function readLocalMemory(userId: string): Promise<UserLocalMemory | null> 
     }
     return null;
   }
-
-  // Server environment - use file system
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('path');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const os = require('os');
-
-    const memoryDir = path.join(os.homedir(), '.infinity-assistant', 'memories', userId);
-    const memoryFile = path.join(memoryDir, 'memory.json');
-
-    if (fs.existsSync(memoryFile)) {
-      const content = fs.readFileSync(memoryFile, 'utf-8');
-      return JSON.parse(content);
-    }
-  } catch (error) {
-    console.warn('[UserMemoryStorage] Failed to read file:', error);
-  }
-
+  // Server-side file operations have been moved to UserMemoryStorageServer.ts
+  // Do not use this function in server-only code.
   return null;
 }
 
@@ -275,6 +257,7 @@ async function readLocalMemory(userId: string): Promise<UserLocalMemory | null> 
  * Write local memory to localStorage (browser) or file (server)
  */
 async function writeLocalMemory(userId: string, memory: UserLocalMemory): Promise<boolean> {
+  // Browser environment only
   // Browser environment
   if (typeof window !== 'undefined') {
     try {
@@ -285,29 +268,9 @@ async function writeLocalMemory(userId: string, memory: UserLocalMemory): Promis
       return false;
     }
   }
-
-  // Server environment
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('path');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const os = require('os');
-
-    const memoryDir = path.join(os.homedir(), '.infinity-assistant', 'memories', userId);
-    const memoryFile = path.join(memoryDir, 'memory.json');
-
-    // Ensure directory exists
-    fs.mkdirSync(memoryDir, { recursive: true });
-
-    // Write pretty-printed JSON for user editability
-    fs.writeFileSync(memoryFile, JSON.stringify(memory, null, 2), 'utf-8');
-    return true;
-  } catch (error) {
-    console.error('[UserMemoryStorage] Failed to write file:', error);
-    return false;
-  }
+  // Server-side file operations have been moved to UserMemoryStorageServer.ts
+  // Do not use this function in server-only code.
+  return false;
 }
 
 // ============================================================================

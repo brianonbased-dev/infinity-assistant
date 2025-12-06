@@ -1,17 +1,17 @@
 {
   "version": "1.0.0",
-  "lastUpdated": "2025-12-04T17:49:43.768Z",
+  "lastUpdated": "2025-12-06T17:02:05.607Z",
   "speakers": {
-    "speaker_1764839056493_dc3r8": {
-      "id": "speaker_1764839056493_dc3r8",
+    "speaker_1765040525601_qxfe8": {
+      "id": "speaker_1765040525601_qxfe8",
       "detectedLanguage": "en",
       "communicationStyle": "casual",
       "vocabularyLevel": "intermediate",
       "formalityLevel": "formal",
       "estimatedAge": "adult",
       "messageCount": 1,
-      "firstSeen": "2025-12-04T09:04:16.493Z",
-      "lastSeen": "2025-12-04T09:04:16.493Z",
+      "firstSeen": "2025-12-06T17:02:05.601Z",
+      "lastSeen": "2025-12-06T17:02:05.601Z",
       "confidence": 0.5,
       "styleFingerprint": {
         "avgWordLength": 5,

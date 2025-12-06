@@ -494,6 +494,12 @@ function InfinityAssistantContent() {
             </div>
             <div className="flex items-center gap-4">
               <a
+                href="/developers"
+                className="text-sm font-mono text-green-400 hover:text-green-300 transition-colors border border-green-500/30 px-3 py-1.5 rounded bg-green-500/10 hover:bg-green-500/20"
+              >
+                &lt;Developers /&gt;
+              </a>
+              <a
                 href="https://infinityassistant.io"
                 target="_blank"
                 rel="noopener noreferrer"

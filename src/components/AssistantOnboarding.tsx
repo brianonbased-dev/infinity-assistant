@@ -81,9 +81,14 @@ export interface CompanionPreferences {
 
 interface AssistantOnboardingProps {
   userId: string;
-  onComplete: (preferences: UserPreferences) => void;
+  onComplete: (preferences: CompanionPreferences) => void;
   onSkip: () => void;
 }
+
+/**
+ * Convert CompanionPreferences to unified UserPreferences format
+ */
+
 
 /**
  * Convert CompanionPreferences to unified UserPreferences format
@@ -878,7 +883,7 @@ export function AssistantOnboarding({ userId, onComplete, onSkip }: AssistantOnb
       console.error('Failed to complete onboarding:', error);
     }
     setIsCompleting(false);
-    onComplete(unifiedPrefs);
+    onComplete(preferences);
   };
 
   const currentStepData = steps[currentStep];

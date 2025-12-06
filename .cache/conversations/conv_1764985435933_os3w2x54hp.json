@@ -1,0 +1,32 @@
+{
+  "conversationId": "conv_1764985435933_os3w2x54hp",
+  "userId": "anon_1764985435717_5vobo85pd3j",
+  "activeMemory": [
+    {
+      "content": "Hello",
+      "type": "user",
+      "importance": "medium",
+      "id": "mem_1764985436227_30rqi3f",
+      "createdAt": "2025-12-06T01:43:56.227Z"
+    },
+    {
+      "content": "Hey there! 👋 \n\nGood to meet you! I'm Infinity Assistant - I'm here to help you with whatever you're working on, whether that's coding, research, brainstorming, or just figuring something out.\n\nWhat's on your mind today? Are you diving into a new project, stuck on something specific, or just exploring ideas?",
+      "type": "assistant",
+      "importance": "medium",
+      "id": "mem_1764985439921_7b98y8q",
+      "createdAt": "2025-12-06T01:43:59.921Z"
+    }
+  ],
+  "compressedMemory": [],
+  "criticalFacts": [],
+  "userContext": {},
+  "phaseContext": {
+    "currentPhase": "intake",
+    "phaseStartedAt": "2025-12-06T01:43:55.668Z",
+    "phaseHistory": [],
+    "cycleCount": 0
+  },
+  "createdAt": "2025-12-06T01:43:56.089Z",
+  "lastActiveAt": "2025-12-06T01:43:59.921Z",
+  "totalMessages": 2
+}

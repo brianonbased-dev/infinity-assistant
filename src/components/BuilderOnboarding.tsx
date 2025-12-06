@@ -367,6 +367,33 @@ export function BuilderOnboarding({ userId, onComplete, onSkip }: BuilderOnboard
             onClick={() => setPreferences(prev => ({ ...prev, experienceLevel: 'advanced' }))}
             color="purple"
           />
+
+          {/* Developer Portal Bypass for Advanced Users */}
+          {preferences.experienceLevel === 'advanced' && (
+            <div className="mt-4 pt-4 border-t border-gray-700 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="bg-black/40 border border-green-500/30 rounded-lg p-4 relative overflow-hidden group">
+                {/* Matrix rain effect hint */}
+                <div className="absolute inset-0 bg-[url('https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif')] opacity-5 pointer-events-none mix-blend-screen"></div>
+                
+                <div className="relative z-10">
+                  <h4 className="text-green-400 font-mono text-sm mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    CONTEXT PROTOCOL DETECTED
+                  </h4>
+                  <p className="text-xs text-green-300/80 mb-3 font-mono">
+                    Advanced users may bypass standard orchestration and access the Context Management layer directly.
+                  </p>
+                  <a 
+                    href="/developers" 
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 rounded text-green-400 font-mono text-xs transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.2)]"
+                  >
+                    <Code className="w-3 h-3" />
+                    INITIALIZE_DEV_CONSOLE()
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ),
     },

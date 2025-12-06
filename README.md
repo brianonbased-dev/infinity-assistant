@@ -1,4 +1,22 @@
+
 # InfinityAssistant.io Service
+
+---
+## 📝 Naming Clarification
+
+- **Master Portal (Tauri app):**  
+  The desktop orchestration interface for agent and protocol management.  
+  **Always refer to this as “Master Portal” or “MCP Portal.”**
+
+- **Infinity Assistant:**  
+  The public-facing web assistant and API service.  
+  **Always refer to this as “Infinity Assistant” or “InfinityAssistant.io Service.”**
+
+- **Best Practice:**  
+  Do not use “Infinity Assistant” to describe the Master Portal desktop app.  
+  Do not use “Master Portal” to describe the Infinity Assistant web service.
+
+---
 
 **Standalone public-facing AI assistant service**
 
