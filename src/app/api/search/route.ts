@@ -28,6 +28,13 @@ import {
 import { withOptionalRateLimit } from '@/middleware/apiRateLimit';
 import { getMasterPortalClient } from '@/services/MasterPortalClient';
 import logger from '@/utils/logger';
+import {
+  createErrorResponse,
+  createRateLimitError,
+  createValidationError,
+  ErrorCode,
+  handleUnknownError,
+} from '@/utils/error-handling';
 
 interface SearchRequest {
   query: string;

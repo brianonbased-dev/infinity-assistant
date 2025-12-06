@@ -112,6 +112,10 @@ export default function UnifiedSearchBar({
   const suggestionsCacheRef = useRef<Map<string, Suggestion[]>>(new Map());
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestAbortControllerRef = useRef<AbortController | null>(null);
+  const queryProcessedRef = useRef(false);
+  const handleSendRef = useRef<(() => Promise<void>) | null>(null);
+  const queryProcessedRef = useRef(false);
+  const handleSendRef = useRef<(() => Promise<void>) | null>(null);
 
   // Intent classifier instance
   const intentClassifier = useMemo(() => getQueryIntentClassifier(), []);
@@ -237,6 +241,50 @@ export default function UnifiedSearchBar({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check for query parameter from landing page search
+  // Use a ref to track if we've already processed the query
+  const queryProcessedRef = useRef(false);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !queryProcessedRef.current && messages.length === 0) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryParam = urlParams.get('q');
+      if (queryParam && queryParam.trim() && input === '') {
+        // Pre-fill input with query
+        setInput(queryParam);
+        queryProcessedRef.current = true;
+        
+        // Auto-submit after component is ready (handleSend is defined by this point)
+        const submitTimer = setTimeout(() => {
+          if (queryParam.trim() && !isLoading) {
+            // handleSend will be called when input is set and component is ready
+            // We'll trigger it via a second effect that watches input
+          }
+        }, 1500);
+        
+        return () => clearTimeout(submitTimer);
+      }
+    }
+  }, [messages.length, input, isLoading]);
+
+  // Auto-submit when input is set from query parameter
+  useEffect(() => {
+    if (typeof window !== 'undefined' && queryProcessedRef.current && input) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryParam = urlParams.get('q');
+      if (queryParam && input === queryParam && messages.length <= 1) {
+        // Only auto-submit if we haven't sent a message yet
+        const submitTimer = setTimeout(() => {
+          if (input.trim() && !isLoading && messages.length <= 1) {
+            handleSend();
+          }
+        }, 2000);
+        return () => clearTimeout(submitTimer);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
 
   // Add welcome message on mount - personalized based on preferences
   useEffect(() => {

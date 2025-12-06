@@ -26,6 +26,13 @@ import { detectLanguage, generateBilingualPrompt, type SupportedLanguage } from 
 import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/services/AdaptiveCommunicationService';
 import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
 import logger from '@/utils/logger';
+import {
+  createErrorResponse,
+  createRateLimitError,
+  createValidationError,
+  ErrorCode,
+  handleUnknownError,
+} from '@/utils/error-handling';
 
 // ============================================================================
 // ETHICS & VALUES INTEGRATION
@@ -716,15 +723,7 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
 
     return nextResponse;
   } catch (error: unknown) {
-    logger.error('[Infinity Agent] Error in chat endpoint:', error);
-
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        message: 'An unexpected error occurred. Please try again later.',
-      },
-      { status: 500 }
-    );
+    return handleUnknownError(error, '[Infinity Agent] Chat endpoint');
   }
 });
 
@@ -742,7 +741,7 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
   );
 
   if (!conversationId) {
-    return NextResponse.json({ error: 'conversationId is required' }, { status: 400 });
+    return createValidationError('conversationId', 'conversationId is required');
   }
 
   try {
@@ -765,9 +764,7 @@ export const GET = withOptionalRateLimit(async (request: NextRequest) => {
       messages: data || [],
     });
   } catch (error) {
-    logger.error('[Infinity Agent] Error fetching conversation:', error);
-
-    return NextResponse.json({ error: 'Failed to fetch conversation history' }, { status: 500 });
+    return handleUnknownError(error, '[Infinity Agent] Fetch conversation');
   }
 });
 

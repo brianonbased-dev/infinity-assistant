@@ -79,20 +79,50 @@ Service runs on `http://localhost:3002`
 
 ---
 
+## 📚 Documentation
+
+### For Users
+- [Getting Started Guide](./docs/GETTING_STARTED.md) - 5-minute quick start
+- [Pricing](https://infinityassistant.io/pricing) - Pricing plans
+- [Dashboard Comparison](./docs/DASHBOARD_COMPARISON.md) - Understanding different dashboards
+
+### For Developers
+- [Public API Documentation](./docs/PUBLIC_API_DOCUMENTATION.md) - Complete API reference
+- [API Quick Start](./docs/PUBLIC_API_DOCUMENTATION.md#-quick-start) - Your first API call
+- [Error Handling Guide](./docs/ERROR_HANDLING_ENHANCEMENT_COMPLETE.md) - Error codes and recovery
+
+### Internal
+- [MVP Readiness Assessment](./docs/SUFFICIENCY_ASSESSMENT.md) - Launch readiness analysis
+- [Launch Status](./docs/DEVELOPER_MVP_LAUNCH_READY.md) - Current launch status
+
+---
+
 ## 📋 API Endpoints
 
-### Chat
+### Public API Documentation
+
+**For developers**: See [Public API Documentation](./docs/PUBLIC_API_DOCUMENTATION.md)
+
+**Quick Start**: See [Getting Started Guide](./docs/GETTING_STARTED.md)
+
+### Main Endpoints
+
+#### Chat
 - `POST /api/chat` - Send message to assistant
 - `GET /api/chat` - Get conversation history
 
-### Search
+#### Search
 - `POST /api/search` - Advanced knowledge base search
 - `GET /api/search` - Search suggestions (autocomplete)
 
-### Onboarding
+#### Onboarding
 - `GET /api/onboarding/check` - Check if user needs onboarding
 - `POST /api/onboarding/complete` - Mark onboarding as complete
 - `POST /api/onboarding/skip` - Mark onboarding as skipped
+
+#### User
+- `GET /api/user/preferences` - Get user preferences
+- `GET /api/user/usage` - Get usage statistics
 
 ---
 

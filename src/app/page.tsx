@@ -22,6 +22,8 @@ import { BuilderOnboarding, UserPreferences } from '@/components/BuilderOnboardi
 import { AssistantOnboarding, CompanionPreferences } from '@/components/AssistantOnboarding';
 import { ProductSelector, ProductChoice } from '@/components/ProductSelector';
 import { SettingsModal } from '@/components/SettingsModal';
+import { PostSignupGuidance } from '@/components/PostSignupGuidance';
+import { needsPostSignupGuidance, trackSignupCompletion, type SignupFlowContext } from '@/utils/signup-flow';
 import { useLocalPreferences } from '@/hooks/useLocalPreferences';
 import { CyberMondayCountdown } from '@/components/CyberMondayCountdown';
 import { demoWorkspaceStorage } from '@/services/DemoWorkspaceStorage';
@@ -29,6 +31,9 @@ import { UserTier } from '@/types/agent-capabilities';
 import { useDeviceExperience } from '@/hooks/useDeviceExperience';
 import MobileOnboarding from '@/components/MobileOnboarding';
 import MobileChatInterface from '@/components/MobileChatInterface';
+import { PostSignupGuidance } from '@/components/PostSignupGuidance';
+import { needsPostSignupGuidance, trackSignupCompletion, type SignupFlowContext } from '@/utils/signup-flow';
+import { LandingSearchBar } from '@/components/LandingSearchBar';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -44,6 +49,7 @@ function InfinityAssistantContent() {
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [userTier, setUserTier] = useState<UserTier>('free');
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; content: string; role: 'user' | 'assistant'; timestamp: string }>>([]);
+  const [showPostSignupGuidance, setShowPostSignupGuidance] = useState(false);
 
   // Device and experience detection for adaptive UI
   const {
@@ -166,8 +172,10 @@ function InfinityAssistantContent() {
     setMounted(true);
     // Check if chat view is requested
     const view = searchParams.get('view');
+    const query = searchParams.get('q');
     if (view === 'chat') {
       setShowChat(true);
+      // If query parameter exists, it will be handled by UnifiedSearchBar
     }
   }, [searchParams]);
 
@@ -237,6 +245,17 @@ function InfinityAssistantContent() {
       );
     }
 
+    // Track signup completion
+    const signupContext: SignupFlowContext = {
+      userId,
+      product: selectedProduct || 'assistant',
+      source: 'anonymous',
+      timestamp: new Date(),
+    };
+    trackSignupCompletion(signupContext).catch((err) =>
+      logger.error('[InfinityAssistantPage] Failed to track signup:', err)
+    );
+
     // If user selected Builder, show Builder onboarding next
     // Otherwise show the assistant chat
     if (selectedProduct === 'builder') {
@@ -244,6 +263,11 @@ function InfinityAssistantContent() {
     } else {
       setShowChat(true);
       router.push('/?view=chat', { scroll: false });
+    }
+
+    // Show post-signup guidance if needed
+    if (needsPostSignupGuidance(userId)) {
+      setTimeout(() => setShowPostSignupGuidance(true), 2000); // Show after 2 seconds
     }
   };
 
@@ -476,6 +500,20 @@ function InfinityAssistantContent() {
             }}
           />
         )}
+
+        {/* Post-Signup Guidance */}
+        {showPostSignupGuidance && userId && (
+          <PostSignupGuidance
+            userId={userId}
+            context={{
+              userId,
+              product: selectedProduct || 'assistant',
+              source: 'anonymous',
+              timestamp: new Date(),
+            }}
+            onDismiss={() => setShowPostSignupGuidance(false)}
+          />
+        )}
       </div>
     );
   }
@@ -563,13 +601,24 @@ function InfinityAssistantContent() {
             <span className="text-green-400 font-semibold">Start Free: 20 queries/day, no credit card</span>
           </div>
 
+          {/* Landing Search Bar - Ask Me Anything */}
+          <div className="mb-8">
+            <LandingSearchBar
+              onSearch={(query) => {
+                // Open chat with the query
+                setShowChat(true);
+                router.push(`/?view=chat&q=${encodeURIComponent(query)}`);
+              }}
+            />
+          </div>
+
           {/* CTA Button */}
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button
               onClick={handleOpenChat}
-              className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-semibold text-lg transition-all shadow-lg shadow-purple-500/50 hover:scale-105"
+              className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-lg font-semibold text-lg transition-all border border-white/20"
             >
-              Try Infinity Free →
+              Open Full Chat →
             </button>
             <a href="#pricing">
               <button className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-lg font-semibold text-lg transition-all border border-white/20">
@@ -619,6 +668,8 @@ function InfinityAssistantContent() {
             <ul className="text-sm text-gray-400 space-y-1 mb-4">
               <li>• Remembers across sessions</li>
               <li>• Bilingual support (EN/ES + 13 more)</li>
+              <li>• Universal knowledge for any situation</li>
+              <li>• Development help & professional writing</li>
               <li>• Tone matching & style adaptation</li>
             </ul>
             <div className="flex flex-wrap gap-2">
