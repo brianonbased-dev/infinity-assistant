@@ -1,0 +1,47 @@
+{
+  "name": "@infinityassistant/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript/JavaScript SDK for Infinity Assistant API",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "infinity-assistant",
+    "ai",
+    "assistant",
+    "api",
+    "sdk",
+    "typescript"
+  ],
+  "author": "Infinity Assistant",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infinityassistant/infinityassistant-service.git",
+    "directory": "sdk/typescript"
+  },
+  "dependencies": {
+    "isomorphic-fetch": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
+

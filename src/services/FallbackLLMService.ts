@@ -17,13 +17,14 @@
 
 import logger from '@/utils/logger';
 
-export type FallbackProvider = 'claude' | 'openai' | 'ollama';
+export type FallbackProvider = 'claude' | 'openai' | 'ollama' | 'google' | 'cohere' | 'mistral';
 
 export interface FallbackLLMConfig {
   provider: FallbackProvider;
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  userId?: string; // For user-provided keys
 }
 
 export interface FallbackChatMessage {
@@ -35,6 +36,8 @@ export interface FallbackChatOptions {
   messages: FallbackChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  userId?: string; // For BYOK - user-provided keys
+  userProviderKeys?: { provider: FallbackProvider; apiKey: string }[]; // User keys to use
 }
 
 export interface FallbackChatResult {
@@ -49,6 +52,9 @@ const DEFAULT_MODELS: Record<FallbackProvider, string> = {
   claude: 'claude-sonnet-4-20250514',
   openai: 'gpt-4o-mini',
   ollama: 'llama3.2',
+  google: 'gemini-pro',
+  cohere: 'command-r-plus',
+  mistral: 'mistral-large-latest',
 };
 
 class FallbackLLMService {
@@ -62,8 +68,11 @@ class FallbackLLMService {
 
   /**
    * Initialize available providers based on environment variables
+   * Can be called with userId to check for user-provided keys
    */
-  private initializeProviders(): void {
+  private initializeProviders(userId?: string): void {
+    this.providers = []; // Clear existing providers
+    
     const primaryProvider = (process.env.FALLBACK_LLM_PROVIDER as FallbackProvider) || 'claude';
     const providerOrder: FallbackProvider[] = [];
 
@@ -76,12 +85,12 @@ class FallbackLLMService {
       providerOrder.push('ollama', 'claude', 'openai');
     }
 
-    // Add available providers
+    // Add available providers (checking user keys first if userId provided)
     for (const provider of providerOrder) {
-      const config = this.getProviderConfig(provider);
+      const config = this.getProviderConfig(provider, userId);
       if (config) {
         this.providers.push(config);
-        logger.debug(`[FallbackLLM] Provider available: ${provider}`);
+        logger.debug(`[FallbackLLM] Provider available: ${provider}${config.userId ? ' (user key)' : ' (system key)'}`);
       }
     }
 
@@ -89,16 +98,123 @@ class FallbackLLMService {
       logger.warn('[FallbackLLM] No fallback providers configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or OLLAMA_URL.');
     } else {
       logger.info(`[FallbackLLM] Initialized with ${this.providers.length} providers:`,
-        this.providers.map(p => p.provider));
+        this.providers.map(p => `${p.provider}${p.userId ? ' (BYOK)' : ''}`));
     }
   }
 
   /**
-   * Get provider configuration if available
+   * Reinitialize providers with user keys
    */
-  private getProviderConfig(provider: FallbackProvider): FallbackLLMConfig | null {
+  initializeWithUserKeys(userId: string, userKeys: { provider: FallbackProvider; apiKey: string }[]): void {
+    this.setUserProviderKeys(userId, userKeys);
+    this.initializeProviders(userId);
+  }
+
+  /**
+   * Get provider configuration if available
+   * Checks for user-provided keys first, then falls back to system keys
+   */
+  private getProviderConfig(provider: FallbackProvider, userId?: string, userApiKey?: string): FallbackLLMConfig | null {
     const modelOverride = process.env.FALLBACK_LLM_MODEL;
 
+    // Use provided user API key if available (BYOK)
+    if (userApiKey) {
+      logger.debug(`[FallbackLLM] Using provided user key for ${provider}`);
+      switch (provider) {
+        case 'claude':
+          return {
+            provider: 'claude',
+            apiKey: userApiKey,
+            baseUrl: 'https://api.anthropic.com',
+            model: modelOverride || DEFAULT_MODELS.claude,
+            userId,
+          };
+        case 'openai':
+          return {
+            provider: 'openai',
+            apiKey: userApiKey,
+            baseUrl: 'https://api.openai.com',
+            model: modelOverride || DEFAULT_MODELS.openai,
+            userId,
+          };
+        case 'google':
+          return {
+            provider: 'google',
+            apiKey: userApiKey,
+            baseUrl: 'https://generativelanguage.googleapis.com',
+            model: modelOverride || DEFAULT_MODELS.google,
+            userId,
+          };
+        case 'cohere':
+          return {
+            provider: 'cohere',
+            apiKey: userApiKey,
+            baseUrl: 'https://api.cohere.ai',
+            model: modelOverride || DEFAULT_MODELS.cohere,
+            userId,
+          };
+        case 'mistral':
+          return {
+            provider: 'mistral',
+            apiKey: userApiKey,
+            baseUrl: 'https://api.mistral.ai',
+            model: modelOverride || DEFAULT_MODELS.mistral,
+            userId,
+          };
+      }
+    }
+
+    // Check for user-provided key from stored keys (legacy support)
+    if (userId) {
+      const userKey = this.userProviderKeys.get(`${userId}:${provider}`);
+      if (userKey) {
+        logger.debug(`[FallbackLLM] Using stored user-provided key for ${provider}`);
+        switch (provider) {
+          case 'claude':
+            return {
+              provider: 'claude',
+              apiKey: userKey.apiKey,
+              baseUrl: 'https://api.anthropic.com',
+              model: modelOverride || DEFAULT_MODELS.claude,
+              userId,
+            };
+          case 'openai':
+            return {
+              provider: 'openai',
+              apiKey: userKey.apiKey,
+              baseUrl: 'https://api.openai.com',
+              model: modelOverride || DEFAULT_MODELS.openai,
+              userId,
+            };
+          case 'google':
+            return {
+              provider: 'google',
+              apiKey: userKey.apiKey,
+              baseUrl: 'https://generativelanguage.googleapis.com',
+              model: modelOverride || DEFAULT_MODELS.google,
+              userId,
+            };
+          case 'cohere':
+            return {
+              provider: 'cohere',
+              apiKey: userKey.apiKey,
+              baseUrl: 'https://api.cohere.ai',
+              model: modelOverride || DEFAULT_MODELS.cohere,
+              userId,
+            };
+          case 'mistral':
+            return {
+              provider: 'mistral',
+              apiKey: userKey.apiKey,
+              baseUrl: 'https://api.mistral.ai',
+              model: modelOverride || DEFAULT_MODELS.mistral,
+              userId,
+            };
+        }
+      }
+    }
+
+    // Fall back to system keys
     switch (provider) {
       case 'claude': {
         const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -119,6 +235,39 @@ class FallbackLLMService {
           apiKey,
           baseUrl: 'https://api.openai.com',
           model: modelOverride || DEFAULT_MODELS.openai,
+        };
+      }
+
+      case 'google': {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (!apiKey) return null;
+        return {
+          provider: 'google',
+          apiKey,
+          baseUrl: 'https://generativelanguage.googleapis.com',
+          model: modelOverride || DEFAULT_MODELS.google,
+        };
+      }
+
+      case 'cohere': {
+        const apiKey = process.env.COHERE_API_KEY;
+        if (!apiKey) return null;
+        return {
+          provider: 'cohere',
+          apiKey,
+          baseUrl: 'https://api.cohere.ai',
+          model: modelOverride || DEFAULT_MODELS.cohere,
+        };
+      }
+
+      case 'mistral': {
+        const apiKey = process.env.MISTRAL_API_KEY;
+        if (!apiKey) return null;
+        return {
+          provider: 'mistral',
+          apiKey,
+          baseUrl: 'https://api.mistral.ai',
+          model: modelOverride || DEFAULT_MODELS.mistral,
         };
       }
 
@@ -190,6 +339,12 @@ class FallbackLLMService {
         return this.callOpenAI(config, options);
       case 'ollama':
         return this.callOllama(config, options);
+      case 'google':
+        return this.callGoogle(config, options);
+      case 'cohere':
+        return this.callCohere(config, options);
+      case 'mistral':
+        return this.callMistral(config, options);
       default:
         throw new Error(`Unknown provider: ${config.provider}`);
     }
@@ -346,6 +501,186 @@ class FallbackLLMService {
         provider: 'ollama',
         model: config.model!,
         tokensUsed: data.eval_count,
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  }
+
+  /**
+   * Call Google Gemini API
+   */
+  private async callGoogle(
+    config: FallbackLLMConfig,
+    options: FallbackChatOptions
+  ): Promise<FallbackChatResult> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      // Extract system message and user messages
+      const systemMessage = options.messages.find(m => m.role === 'system');
+      const userMessages = options.messages.filter(m => m.role !== 'system');
+
+      // Convert messages to Gemini format
+      const contents = userMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+      const response = await fetch(
+        `${config.baseUrl}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents,
+            systemInstruction: systemMessage?.content ? {
+              parts: [{ text: systemMessage.content }],
+            } : undefined,
+            generationConfig: {
+              maxOutputTokens: options.maxTokens || 4096,
+              temperature: options.temperature ?? 0.7,
+            },
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Google API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      return {
+        response: data.candidates?.[0]?.content?.parts?.[0]?.text || '',
+        provider: 'google',
+        model: config.model!,
+        tokensUsed: data.usageMetadata?.totalTokenCount,
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  }
+
+  /**
+   * Call Cohere API
+   */
+  private async callCohere(
+    config: FallbackLLMConfig,
+    options: FallbackChatOptions
+  ): Promise<FallbackChatResult> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      // Extract system message and convert messages to Cohere format
+      const systemMessage = options.messages.find(m => m.role === 'system');
+      const conversationMessages = options.messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'assistant' ? 'CHATBOT' : 'USER',
+          message: m.content,
+        }));
+
+      const response = await fetch(`${config.baseUrl}/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: conversationMessages,
+          preamble: systemMessage?.content,
+          max_tokens: options.maxTokens || 4096,
+          temperature: options.temperature ?? 0.7,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Cohere API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      return {
+        response: data.text || '',
+        provider: 'cohere',
+        model: config.model!,
+        tokensUsed: data.meta?.tokens?.input_tokens && data.meta?.tokens?.output_tokens
+          ? data.meta.tokens.input_tokens + data.meta.tokens.output_tokens
+          : undefined,
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  }
+
+  /**
+   * Call Mistral API
+   */
+  private async callMistral(
+    config: FallbackLLMConfig,
+    options: FallbackChatOptions
+  ): Promise<FallbackChatResult> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      // Extract system message and convert to Mistral format
+      const systemMessage = options.messages.find(m => m.role === 'system');
+      const messages = options.messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+      const response = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: systemMessage
+            ? [{ role: 'system', content: systemMessage.content }, ...messages]
+            : messages,
+          max_tokens: options.maxTokens || 4096,
+          temperature: options.temperature ?? 0.7,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Mistral API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      return {
+        response: data.choices?.[0]?.message?.content || '',
+        provider: 'mistral',
+        model: config.model!,
+        tokensUsed: data.usage?.total_tokens,
       };
     } catch (error) {
       clearTimeout(timeoutId);

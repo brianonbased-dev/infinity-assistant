@@ -9,6 +9,8 @@ const nextConfig = {
   poweredByHeader: false,
   // Turbopack config for Next.js 16 (empty config silences webpack warning)
   turbopack: {},
+  // Enable standalone output for Docker
+  output: 'standalone',
 };
 
 export default nextConfig;

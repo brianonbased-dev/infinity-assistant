@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getEmailService } from '@/services/EmailService';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
 import logger from '@/utils/logger';
 import { getErrorMessage } from '@/utils/error-handling';
@@ -23,6 +24,36 @@ interface CompleteRequest {
   userId: string;
   stepsCompleted?: string[];
   preferences?: UserPreferences;
+}
+
+/**
+ * Send onboarding complete email
+ */
+async function sendOnboardingCompleteEmail(userId: string, preferences?: UserPreferences) {
+  try {
+    const emailService = getEmailService();
+    const supabase = getSupabaseClient();
+    
+    // Get user email from database
+    const { data: user } = await supabase
+      .from(TABLES.USERS)
+      .select('email, name')
+      .eq('id', userId)
+      .single();
+
+    if (user?.email) {
+      const product = preferences?.preferredMode === 'build' ? 'builder' : 'assistant';
+      await emailService.sendOnboardingCompleteEmail({
+        email: user.email,
+        name: user.name,
+        product,
+        preferences
+      });
+    }
+  } catch (emailError) {
+    // Don't fail onboarding if email fails
+    logger.warn('[Onboarding] Failed to send completion email:', emailError);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -66,6 +97,9 @@ export async function POST(request: NextRequest) {
         throw error;
       }
 
+      // Send onboarding complete email
+      await sendOnboardingCompleteEmail(userId, preferences);
+
       return NextResponse.json({
         success: true,
         onboarding: data,
@@ -85,6 +119,9 @@ export async function POST(request: NextRequest) {
       if (error) {
         throw error;
       }
+
+      // Send onboarding complete email
+      await sendOnboardingCompleteEmail(userId, preferences);
 
       return NextResponse.json({
         success: true,

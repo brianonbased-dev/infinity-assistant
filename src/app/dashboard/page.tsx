@@ -48,9 +48,15 @@ import {
   CheckCircle,
   Play,
   Sparkles,
+  Webhook,
+  BarChart3,
 } from 'lucide-react';
 import WorkspaceFileBrowser, { type WorkspaceFile } from '@/components/WorkspaceFileBrowser';
 import APIDocumentationPanel from '@/components/APIDocumentationPanel';
+import { ApiKeyManager } from '@/components/ApiKeyManager';
+import { WebhookManager } from '@/components/WebhookManager';
+import { UsageAnalytics } from '@/components/UsageAnalytics';
+import { ProviderKeyManager } from '@/components/ProviderKeyManager';
 
 // Types
 interface Workspace {
@@ -74,7 +80,7 @@ interface APIKey {
   status: 'active' | 'expired' | 'revoked';
 }
 
-type DashboardTab = 'overview' | 'files' | 'api-keys' | 'docs' | 'deploy' | 'settings';
+type DashboardTab = 'overview' | 'files' | 'api-keys' | 'provider-keys' | 'webhooks' | 'usage' | 'docs' | 'deploy' | 'settings';
 
 // Dashboard content component (uses searchParams)
 function DashboardContent() {
@@ -535,6 +541,9 @@ OPENAI_API_KEY=your_api_key_here`,
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'files', label: 'Files', icon: FolderOpen },
     { id: 'api-keys', label: 'API Keys', icon: Key },
+    { id: 'provider-keys', label: 'LLM Providers', icon: Key },
+    { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+    { id: 'usage', label: 'Usage', icon: BarChart3 },
     { id: 'docs', label: 'Documentation', icon: Book },
     { id: 'deploy', label: 'Deploy', icon: Rocket },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -822,71 +831,28 @@ OPENAI_API_KEY=your_api_key_here`,
           {/* API Keys Tab */}
           {activeTab === 'api-keys' && (
             <div className="space-y-6 animate-fade-in">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-white">API Keys</h2>
-                <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors text-sm">
-                  <Plus className="w-4 h-4" />
-                  Add Provider
-                </button>
-              </div>
+              <ApiKeyManager />
+            </div>
+          )}
 
-              <div className="space-y-4">
-                {apiKeys.map(key => (
-                  <div key={key.id} className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                          <Key className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-white">{key.provider}</h4>
-                          <p className="text-sm text-gray-400">{key.name}</p>
-                        </div>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        key.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                        key.status === 'expired' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-red-500/20 text-red-400'
-                      }`}>
-                        {key.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 bg-gray-900 rounded-lg">
-                      <code className="flex-1 text-sm text-gray-300 font-mono">
-                        {showKeys[key.id] ? 'sk-ant-api03-actual-key-here' : key.maskedKey}
-                      </code>
-                      <button
-                        onClick={() => toggleKeyVisibility(key.id)}
-                        className="p-1.5 hover:bg-gray-700 rounded transition-colors"
-                        title={showKeys[key.id] ? 'Hide key' : 'Show key'}
-                      >
-                        {showKeys[key.id] ? (
-                          <EyeOff className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <Eye className="w-4 h-4 text-gray-400" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => copyToClipboard(key.maskedKey, key.id)}
-                        className="p-1.5 hover:bg-gray-700 rounded transition-colors"
-                        title="Copy key"
-                      >
-                        {copiedKey === key.id ? (
-                          <Check className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                      <span>Last used: {key.lastUsed ? key.lastUsed.toLocaleDateString() : 'Never'}</span>
-                      <button className="text-purple-400 hover:text-purple-300">
-                        Rotate Key
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* Provider Keys Tab */}
+          {activeTab === 'provider-keys' && (
+            <div className="space-y-6 animate-fade-in">
+              <ProviderKeyManager />
+            </div>
+          )}
+
+          {/* Webhooks Tab */}
+          {activeTab === 'webhooks' && (
+            <div className="space-y-6 animate-fade-in">
+              <WebhookManager />
+            </div>
+          )}
+
+          {/* Usage Analytics Tab */}
+          {activeTab === 'usage' && (
+            <div className="space-y-6 animate-fade-in">
+              <UsageAnalytics />
             </div>
           )}
 
@@ -949,7 +915,7 @@ OPENAI_API_KEY=your_api_key_here`,
                     { name: 'Vercel', icon: '▲', desc: 'Deploy to Vercel with one click', status: 'ready' },
                     { name: 'Railway', icon: '🚂', desc: 'Deploy to Railway infrastructure', status: 'ready' },
                     { name: 'GitHub', icon: '🐙', desc: 'Push to GitHub repository', status: 'ready' },
-                    { name: 'Docker', icon: '🐳', desc: 'Export as Docker container', status: 'coming' },
+                    { name: 'Docker', icon: '🐳', desc: 'Deploy with Docker container', status: 'ready' },
                   ].map((platform, idx) => (
                     <div key={idx} className="p-4 bg-gray-800/50 rounded-xl border border-gray-700 flex items-center justify-between">
                       <div className="flex items-center gap-4">

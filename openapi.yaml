@@ -1,0 +1,326 @@
+openapi: 3.0.3
+info:
+  title: Infinity Assistant API
+  description: |
+    Public-facing AI assistant API for InfinityAssistant.io
+    
+    Features:
+    - Chat and conversation management
+    - Knowledge base search and research
+    - Memory and preferences
+    - Analytics and tracking
+    - Webhooks and integrations
+    
+    Authentication:
+    - Email-based authentication
+    - API key authentication (for developers)
+  version: 1.0.0
+  contact:
+    name: Infinity Assistant Support
+    url: https://infinityassistant.io/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://infinityassistant.io/api
+    description: Production
+  - url: http://localhost:3000/api
+    description: Development
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Chat
+    description: Chat and conversation endpoints
+  - name: Knowledge
+    description: Knowledge base search and research
+  - name: Memory
+    description: User memory and preferences
+  - name: Analytics
+    description: Analytics and tracking
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /auth/email:
+    get:
+      tags: [Authentication]
+      summary: Check authentication status
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                  user:
+                    type: object
+    post:
+      tags: [Authentication]
+      summary: Sign in with email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Sign in successful
+        '400':
+          description: Invalid request
+
+  /chat:
+    post:
+      tags: [Chat]
+      summary: Send a chat message
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                conversationId:
+                  type: string
+                mode:
+                  type: string
+                  enum: [search, assist, build]
+                preferences:
+                  type: object
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                  conversationId:
+                    type: string
+                  tokensUsed:
+                    type: number
+
+  /chat/stream:
+    post:
+      tags: [Chat]
+      summary: Stream chat response
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                conversationId:
+                  type: string
+      responses:
+        '200':
+          description: Stream response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /knowledge:
+    post:
+      tags: [Knowledge]
+      summary: Search knowledge base
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                domain:
+                  type: string
+      responses:
+        '200':
+          description: Knowledge search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /knowledge/gap:
+    post:
+      tags: [Knowledge]
+      summary: Check for knowledge gap
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topic]
+              properties:
+                topic:
+                  type: string
+      responses:
+        '200':
+          description: Knowledge gap assessment
+
+  /research:
+    post:
+      tags: [Knowledge]
+      summary: Research a topic
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                mode:
+                  type: string
+                  enum: [quick, standard, deep, comprehensive]
+      responses:
+        '200':
+          description: Research results
+
+  /user/preferences:
+    get:
+      tags: [Memory]
+      summary: Get user preferences
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      responses:
+        '200':
+          description: User preferences
+    post:
+      tags: [Memory]
+      summary: Update user preferences
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Preferences updated
+
+  /memory:
+    get:
+      tags: [Memory]
+      summary: Get conversation memory
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      parameters:
+        - name: conversationId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory data
+    post:
+      tags: [Memory]
+      summary: Store memory
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversationId, content]
+              properties:
+                conversationId:
+                  type: string
+                content:
+                  type: string
+                type:
+                  type: string
+      responses:
+        '200':
+          description: Memory stored
+
+  /analytics/knowledge:
+    get:
+      tags: [Analytics]
+      summary: Get knowledge analytics
+      security:
+        - ApiKeyAuth: []
+        - EmailAuth: []
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [all, professional, companion]
+      responses:
+        '200':
+          description: Analytics data
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Service health
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    EmailAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+

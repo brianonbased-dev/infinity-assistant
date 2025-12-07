@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient, TABLES } from '@/lib/supabase';
+import { getEmailService } from '@/services/EmailService';
 import logger from '@/utils/logger';
 import crypto from 'crypto';
 
@@ -202,6 +203,18 @@ export async function POST(request: NextRequest) {
       userId = newUserId;
       isNewUser = true;
       logger.info(`[EmailAuth] New user created: ${emailHash.substring(0, 8)}...`);
+
+      // Send welcome email for new users
+      try {
+        const emailService = getEmailService();
+        await emailService.sendWelcomeEmail({
+          email: normalizedEmail,
+          product: 'assistant' // Default, can be updated later
+        });
+      } catch (emailError) {
+        // Don't fail signup if email fails
+        logger.warn('[EmailAuth] Failed to send welcome email:', emailError);
+      }
     } else {
       return NextResponse.json(
         { error: 'Account not found. Please sign up first.' },

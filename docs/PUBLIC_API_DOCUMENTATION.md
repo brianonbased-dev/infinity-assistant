@@ -11,19 +11,49 @@
 ### Get Your API Key
 
 1. Sign up at [infinityassistant.io](https://infinityassistant.io)
-2. Go to Settings → API Keys
+2. Go to Dashboard → API Keys
 3. Create a new API key
-4. Copy and store securely
+4. Copy and store securely (shown only once!)
 
-### Your First API Call
+### Using the SDK (Recommended)
+
+The easiest way to get started is with our official TypeScript/JavaScript SDK:
+
+```bash
+npm install @infinityassistant/sdk
+```
+
+```typescript
+import { InfinityAssistantClient } from '@infinityassistant/sdk';
+
+const client = new InfinityAssistantClient({
+  apiKey: 'ia_your_api_key_here',
+});
+
+// Send a chat message
+const response = await client.chat({
+  message: 'Hello, Infinity Assistant!',
+});
+
+console.log(response.response);
+```
+
+**Learn more**: 
+- [TypeScript SDK Documentation](../sdk/typescript/README.md)
+- [Python SDK Documentation](../sdk/python/README.md)
+
+### Try It Out (No Code Required)
+
+Use our interactive [API Playground](/developers/playground) to test endpoints without writing any code.
+
+### Your First API Call (cURL)
 
 ```bash
 curl -X POST https://infinityassistant.io/api/chat \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Hello, Infinity Assistant!",
-    "conversation_id": null
+    "message": "Hello, Infinity Assistant!"
   }'
 ```
 
@@ -71,6 +101,34 @@ fetch('/api/chat', {
 #### POST /api/chat
 
 Send a message to the Infinity Assistant.
+
+**Using the SDK**:
+```typescript
+import { InfinityAssistantClient } from '@infinityassistant/sdk';
+
+const client = new InfinityAssistantClient({ apiKey: 'ia_your_key' });
+
+const response = await client.chat({
+  message: 'What is artificial intelligence?',
+  conversationId: 'conv_123', // Optional: Continue existing conversation
+  mode: 'assist', // Optional: 'search' | 'assist' | 'build'
+});
+
+console.log(response.response);
+```
+
+**Streaming with SDK**:
+```typescript
+for await (const chunk of client.chatStream({
+  message: 'Tell me a story',
+})) {
+  if (chunk.type === 'text') {
+    process.stdout.write(chunk.content);
+  } else if (chunk.type === 'done') {
+    break;
+  }
+}
+```
 
 **Request**:
 ```json

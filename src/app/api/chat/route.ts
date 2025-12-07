@@ -27,6 +27,9 @@ import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/
 import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
 import { getJobDetectionService, getJobKnowledgeTracker } from '@/lib/job-detection';
 import { getLifeContextDetectionService, getInterestKnowledgeTracker } from '@/lib/life-context';
+import { getProviderKeyService } from '@/lib/provider-keys/ProviderKeyService';
+import { getFallbackLLMService } from '@/services/FallbackLLMService';
+import { withOptionalApiKeyAuth } from '@/middleware/apiKeyAuth';
 import logger from '@/utils/logger';
 import {
   createErrorResponse,
@@ -311,6 +314,22 @@ The user is currently driving. Adapt your responses:
  * Send message to Infinity Agent (public-facing)
  */
 export const POST = withOptionalRateLimit(async (request: NextRequest) => {
+  // Check for API key authentication first
+  const apiKey = request.headers.get('X-API-Key') || 
+                 request.headers.get('Authorization')?.replace('Bearer ', '');
+  
+  let authenticatedUserId: string | undefined;
+  let authMethod: 'api_key' | 'session' = 'session';
+
+  if (apiKey && apiKey.startsWith('ia_')) {
+    const { validateApiKey } = await import('@/middleware/apiKeyAuth');
+    const validation = await validateApiKey(apiKey);
+    if (validation.valid && validation.userId) {
+      authenticatedUserId = validation.userId;
+      authMethod = 'api_key';
+    }
+  }
+
   const startTime = Date.now();
 
   // Create timeout signal (60 seconds)
@@ -361,7 +380,8 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
 
     // Get user service
     const userService = getUserService();
-    const userId = providedUserId || userService.getAnonymousUserId(
+    // Use API key user ID if authenticated, otherwise fall back to session/anonymous
+    const userId = authenticatedUserId || providedUserId || userService.getAnonymousUserId(
       request.cookies.get('infinity_anon_user')?.value
     );
 

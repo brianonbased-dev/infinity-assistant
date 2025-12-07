@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  infinity-assistant-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: infinity-assistant-dev
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - UAA2_SUPABASE_SERVICE_KEY=${UAA2_SUPABASE_SERVICE_KEY}
+      - PROVIDER_KEYS_ENCRYPTION_KEY=${PROVIDER_KEYS_ENCRYPTION_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - UAA2_SERVICE_URL=${UAA2_SERVICE_URL:-http://localhost:3000}
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - infinity-network
+
+networks:
+  infinity-network:
+    driver: bridge
+
+

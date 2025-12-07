@@ -1,0 +1,373 @@
+{
+  "info": {
+    "name": "Infinity Assistant API",
+    "description": "Complete API collection for InfinityAssistant.io - Public-facing AI assistant with chat, knowledge, and integration capabilities",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "infinity-assistant"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Email Auth - Check Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/email",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "email"]
+            }
+          }
+        },
+        {
+          "name": "Email Auth - Sign In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/email",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "email"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello, how can you help me?\",\n  \"conversationId\": \"\",\n  \"mode\": \"assist\",\n  \"preferences\": {}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            }
+          }
+        },
+        {
+          "name": "Stream Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Explain quantum computing\",\n  \"conversationId\": \"\",\n  \"mode\": \"assist\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/stream",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat", "stream"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Knowledge",
+      "item": [
+        {
+          "name": "Search Knowledge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"React best practices\",\n  \"domain\": \"technology\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge"]
+            }
+          }
+        },
+        {
+          "name": "Check Knowledge Gap",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"machine learning\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/gap",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge", "gap"]
+            }
+          }
+        },
+        {
+          "name": "Needs Research",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"new technology\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge/needs-research",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge", "needs-research"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Research",
+      "item": [
+        {
+          "name": "Research Topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"latest AI developments\",\n  \"mode\": \"deep\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/research",
+              "host": ["{{base_url}}"],
+              "path": ["api", "research"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Get Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/user/preferences",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "preferences"]
+            }
+          }
+        },
+        {
+          "name": "Update Preferences",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferredMode\": \"assist\",\n  \"communicationStyle\": \"conversational\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/user/preferences",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "preferences"]
+            }
+          }
+        },
+        {
+          "name": "Get Usage",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/user/usage",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "usage"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memory",
+      "item": [
+        {
+          "name": "Get Memory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/memory?conversationId={{conversation_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memory"],
+            "query": [
+              {
+                "key": "conversationId",
+                "value": "{{conversation_id}}"
+              }
+            ]
+            }
+          }
+        },
+        {
+          "name": "Store Memory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversationId\": \"{{conversation_id}}\",\n  \"content\": \"User prefers concise responses\",\n  \"type\": \"preference\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/memory",
+              "host": ["{{base_url}}"],
+              "path": ["api", "memory"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Knowledge Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/analytics/knowledge?mode=all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "analytics", "knowledge"],
+            "query": [
+              {
+                "key": "mode",
+                "value": "all",
+                "description": "all, professional, or companion"
+              }
+            ]
+            }
+          }
+        },
+        {
+          "name": "Job Tracking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/jobs/tracking?category=technology-engineering",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jobs", "tracking"],
+            "query": [
+              {
+                "key": "category",
+                "value": "technology-engineering"
+              }
+            ]
+            }
+          }
+        },
+        {
+          "name": "Companion Tracking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/companion/tracking?lifeStage=student",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companion", "tracking"],
+            "query": [
+              {
+                "key": "lifeStage",
+                "value": "student"
+              }
+            ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://infinityassistant.io",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
+

@@ -2,6 +2,8 @@
 
 import { MatrixBackground } from '@/components/MatrixBackground';
 import { TerminalInterface } from '@/components/TerminalInterface';
+import { Code, Play } from 'lucide-react';
+import Link from 'next/link';
 import logger from '@/utils/logger';
 
 export default function DevelopersPage() {
@@ -30,6 +32,24 @@ export default function DevelopersPage() {
       
       {/* Content - z-index 10 */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-4">
+        {/* Quick Links */}
+        <div className="mb-8 flex gap-4">
+          <Link
+            href="/developers/playground"
+            className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors"
+          >
+            <Play className="w-5 h-5" />
+            <span>API Playground</span>
+          </Link>
+          <Link
+            href="/developers/console"
+            className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <Code className="w-5 h-5" />
+            <span>Developer Console</span>
+          </Link>
+        </div>
+        
         <TerminalInterface onSignup={handleSignup} />
       </div>
     </div>

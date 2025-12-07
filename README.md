@@ -77,6 +77,21 @@ npm run dev
 
 Service runs on `http://localhost:3002`
 
+### Docker Deployment
+
+**Production:**
+```bash
+docker build -t infinity-assistant:latest .
+docker run -d -p 3002:3002 --env-file .env infinity-assistant:latest
+```
+
+**Development:**
+```bash
+docker-compose -f docker-compose.dev.yml up
+```
+
+**Full Documentation:** See [Docker Deployment Guide](./docs/DOCKER_DEPLOYMENT.md)
+
 ---
 
 ## 📚 Documentation
@@ -87,9 +102,14 @@ Service runs on `http://localhost:3002`
 - [Dashboard Comparison](./docs/DASHBOARD_COMPARISON.md) - Understanding different dashboards
 
 ### For Developers
+- [TypeScript/JavaScript SDK](./sdk/typescript/README.md) - Official SDK with full TypeScript support
+- [Python SDK](./sdk/python/README.md) - Official Python SDK with async support
+- [API Playground](/developers/playground) - Interactive API explorer (no code required)
 - [Public API Documentation](./docs/PUBLIC_API_DOCUMENTATION.md) - Complete API reference
 - [API Quick Start](./docs/PUBLIC_API_DOCUMENTATION.md#-quick-start) - Your first API call
 - [Error Handling Guide](./docs/ERROR_HANDLING_ENHANCEMENT_COMPLETE.md) - Error codes and recovery
+- [Postman Collection](./postman/Infinity_Assistant_API.postman_collection.json) - Pre-configured API requests
+- [OpenAPI Specification](./openapi.yaml) - Complete API specification
 
 ### Internal
 - [MVP Readiness Assessment](./docs/SUFFICIENCY_ASSESSMENT.md) - Launch readiness analysis

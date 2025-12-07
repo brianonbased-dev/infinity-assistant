@@ -290,6 +290,43 @@ export class MasterPortalClient {
         // Generate a simplified system prompt for fallback mode
         const fallbackSystemPrompt = this.generateFallbackSystemPrompt(options.mode);
 
+        // Check for user provider keys (BYOK)
+        const userProviderKeys: { provider: 'claude' | 'openai' | 'google' | 'cohere' | 'mistral'; apiKey: string }[] = [];
+        if (options.userId) {
+          try {
+            const { getProviderKeyService } = await import('@/lib/provider-keys/ProviderKeyService');
+            const providerKeyService = getProviderKeyService();
+            
+            // Check all supported providers
+            const anthropicKey = await providerKeyService.getActualKey(options.userId, 'anthropic');
+            if (anthropicKey) {
+              userProviderKeys.push({ provider: 'claude', apiKey: anthropicKey });
+            }
+            
+            const openaiKey = await providerKeyService.getActualKey(options.userId, 'openai');
+            if (openaiKey) {
+              userProviderKeys.push({ provider: 'openai', apiKey: openaiKey });
+            }
+            
+            const googleKey = await providerKeyService.getActualKey(options.userId, 'google');
+            if (googleKey) {
+              userProviderKeys.push({ provider: 'google', apiKey: googleKey });
+            }
+            
+            const cohereKey = await providerKeyService.getActualKey(options.userId, 'cohere');
+            if (cohereKey) {
+              userProviderKeys.push({ provider: 'cohere', apiKey: cohereKey });
+            }
+            
+            const mistralKey = await providerKeyService.getActualKey(options.userId, 'mistral');
+            if (mistralKey) {
+              userProviderKeys.push({ provider: 'mistral', apiKey: mistralKey });
+            }
+          } catch (error) {
+            logger.warn('[MasterPortalClient] Failed to load user provider keys:', error);
+          }
+        }
+
         const fallbackResult = await fallbackService.chat({
           messages: [
             { role: 'system', content: fallbackSystemPrompt },
@@ -297,6 +334,8 @@ export class MasterPortalClient {
           ],
           maxTokens: 4096,
           temperature: 0.7,
+          userId: options.userId,
+          userProviderKeys: userProviderKeys.length > 0 ? userProviderKeys : undefined,
         });
 
         logger.info('[MasterPortalClient] Fallback LLM success:', {

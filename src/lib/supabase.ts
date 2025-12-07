@@ -59,6 +59,10 @@ export const TABLES = {
   USER_VAULT_CONFIG: 'user_vault_config',
   USER_VAULT_SECRETS: 'user_vault_secrets',
   USER_VAULT_AUDIT: 'user_vault_audit',
+  // Provider keys (BYOK)
+  PROVIDER_KEYS: 'provider_keys',
+  // API keys
+  API_KEYS: 'api_keys',
 } as const;
 
 /**
