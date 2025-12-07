@@ -25,6 +25,7 @@ import { getAssistantContextBuilder, getConversationMemoryService, getPhaseTrans
 import { detectLanguage, generateBilingualPrompt, type SupportedLanguage } from '@/services/BilingualService';
 import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/services/AdaptiveCommunicationService';
 import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
+import { getJobDetectionService, getJobKnowledgeTracker } from '@/lib/job-detection';
 import logger from '@/utils/logger';
 import {
   createErrorResponse,
@@ -437,6 +438,29 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         });
       }
 
+      // Detect job category for knowledge tracking
+      const jobDetectionService = getJobDetectionService();
+      const jobKnowledgeTracker = getJobKnowledgeTracker();
+      const jobResult = jobDetectionService.detectJob({
+        query: filteredRequest.message,
+        conversationHistory: userContext ? [userContext] : undefined,
+        userProfile: preferences ? {
+          profession: preferences.role,
+          role: preferences.role,
+          industry: preferences.interests?.[0]
+        } : undefined
+      });
+
+      // Log job detection
+      if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+        logger.debug('[Infinity Agent] Job detected:', {
+          category: jobResult.category,
+          confidence: jobResult.confidence,
+          specificRole: jobResult.specificRole,
+          keywords: jobResult.keywords
+        });
+      }
+
       // Check for explicit memory commands
       const memoryService = getConversationMemoryService();
       const memoryIntent = memoryService.detectMemoryIntent(filteredRequest.message);
@@ -449,6 +473,11 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
           memoryIntent.type
         );
         memoryStored = true;
+        
+        // Track experimental knowledge creation
+        if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+          jobKnowledgeTracker.trackExperimentalKnowledge(jobResult.category);
+        }
       }
 
       // Check if we should ask the user about remembering
@@ -641,6 +670,26 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
 
       agentResponse = result.response || 'I apologize, but I was unable to process your request.';
       tokensUsed = result.tokensUsed || 0;
+
+      // Check for knowledge gaps (if job category detected)
+      let hadKnowledgeGap = false;
+      if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+        try {
+          const { needsResearch } = await import('@/lib/knowledge');
+          const researchAssessment = await needsResearch(filteredRequest.message);
+          hadKnowledgeGap = researchAssessment.needsResearch;
+          
+          // Track query with knowledge gap info
+          jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, hadKnowledgeGap);
+        } catch (error) {
+          // Fallback: track query without gap detection
+          jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, false);
+          logger.debug('[Infinity Agent] Knowledge gap detection skipped:', error);
+        }
+      } else {
+        // Track general queries too
+        jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, false);
+      }
 
       // Add memory confirmation to response if something was stored
       if (memoryStored) {

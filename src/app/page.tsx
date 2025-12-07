@@ -34,6 +34,7 @@ import MobileChatInterface from '@/components/MobileChatInterface';
 import { PostSignupGuidance } from '@/components/PostSignupGuidance';
 import { needsPostSignupGuidance, trackSignupCompletion, type SignupFlowContext } from '@/utils/signup-flow';
 import { LandingSearchBar } from '@/components/LandingSearchBar';
+import { JobSpecificSections } from '@/components/JobSpecificSections';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -706,6 +707,9 @@ function InfinityAssistantContent() {
           </a>
         </div>
       </section>
+
+      {/* Job-Specific Sections */}
+      <JobSpecificSections />
 
       {/* Social Proof / Stats Section */}
       <section className="container mx-auto px-4 py-12">
