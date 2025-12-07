@@ -31,8 +31,6 @@ import { UserTier } from '@/types/agent-capabilities';
 import { useDeviceExperience } from '@/hooks/useDeviceExperience';
 import MobileOnboarding from '@/components/MobileOnboarding';
 import MobileChatInterface from '@/components/MobileChatInterface';
-import { PostSignupGuidance } from '@/components/PostSignupGuidance';
-import { needsPostSignupGuidance, trackSignupCompletion, type SignupFlowContext } from '@/utils/signup-flow';
 import { LandingSearchBar } from '@/components/LandingSearchBar';
 import { JobSpecificSections } from '@/components/JobSpecificSections';
 import { CompanionSpecificSections } from '@/components/CompanionSpecificSections';

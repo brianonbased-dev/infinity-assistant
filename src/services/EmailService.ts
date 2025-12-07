@@ -8,7 +8,10 @@
 import { Resend } from 'resend';
 import logger from '@/utils/logger';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend only if API key is available (prevents build-time errors)
+const resend = process.env.RESEND_API_KEY 
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 export interface WelcomeEmailData {
   email: string;
@@ -100,6 +103,11 @@ export class EmailService {
         </html>
       `;
 
+      if (!resend) {
+        logger.warn('[EmailService] Resend not configured, skipping email send');
+        return false;
+      }
+
       const result = await resend.emails.send({
         from: this.fromEmail,
         to: data.email,
@@ -165,6 +173,11 @@ export class EmailService {
         </html>
       `;
 
+      if (!resend) {
+        logger.warn('[EmailService] Resend not configured, skipping email send');
+        return false;
+      }
+
       const result = await resend.emails.send({
         from: this.fromEmail,
         to: data.email,
@@ -229,6 +242,11 @@ export class EmailService {
         </body>
         </html>
       `;
+
+      if (!resend) {
+        logger.warn('[EmailService] Resend not configured, skipping email send');
+        return false;
+      }
 
       const result = await resend.emails.send({
         from: this.fromEmail,

@@ -114,8 +114,6 @@ export default function UnifiedSearchBar({
   const requestAbortControllerRef = useRef<AbortController | null>(null);
   const queryProcessedRef = useRef(false);
   const handleSendRef = useRef<(() => Promise<void>) | null>(null);
-  const queryProcessedRef = useRef(false);
-  const handleSendRef = useRef<(() => Promise<void>) | null>(null);
 
   // Intent classifier instance
   const intentClassifier = useMemo(() => getQueryIntentClassifier(), []);
@@ -243,9 +241,7 @@ export default function UnifiedSearchBar({
   }, [messages]);
 
   // Check for query parameter from landing page search
-  // Use a ref to track if we've already processed the query
-  const queryProcessedRef = useRef(false);
-  
+  // Note: queryProcessedRef is already defined above (line 115)
   useEffect(() => {
     if (typeof window !== 'undefined' && !queryProcessedRef.current && messages.length === 0) {
       const urlParams = new URLSearchParams(window.location.search);
