@@ -35,6 +35,7 @@ import { PostSignupGuidance } from '@/components/PostSignupGuidance';
 import { needsPostSignupGuidance, trackSignupCompletion, type SignupFlowContext } from '@/utils/signup-flow';
 import { LandingSearchBar } from '@/components/LandingSearchBar';
 import { JobSpecificSections } from '@/components/JobSpecificSections';
+import { CompanionSpecificSections } from '@/components/CompanionSpecificSections';
 
 function InfinityAssistantContent() {
   const [mounted, setMounted] = useState(false);
@@ -708,8 +709,11 @@ function InfinityAssistantContent() {
         </div>
       </section>
 
-      {/* Job-Specific Sections */}
+      {/* Job-Specific Sections (Professional Mode) */}
       <JobSpecificSections />
+
+      {/* Companion-Specific Sections (Personal/Companion Mode) */}
+      <CompanionSpecificSections />
 
       {/* Social Proof / Stats Section */}
       <section className="container mx-auto px-4 py-12">

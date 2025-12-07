@@ -26,6 +26,7 @@ import { detectLanguage, generateBilingualPrompt, type SupportedLanguage } from 
 import { getAdaptiveCommunicationService, type VoiceRecognitionResult } from '@/services/AdaptiveCommunicationService';
 import { generateEssencePrompt, type EssenceConfig } from '@/app/api/speakers/essence/route';
 import { getJobDetectionService, getJobKnowledgeTracker } from '@/lib/job-detection';
+import { getLifeContextDetectionService, getInterestKnowledgeTracker } from '@/lib/life-context';
 import logger from '@/utils/logger';
 import {
   createErrorResponse,
@@ -438,27 +439,60 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         });
       }
 
-      // Detect job category for knowledge tracking
-      const jobDetectionService = getJobDetectionService();
-      const jobKnowledgeTracker = getJobKnowledgeTracker();
-      const jobResult = jobDetectionService.detectJob({
-        query: filteredRequest.message,
-        conversationHistory: userContext ? [userContext] : undefined,
-        userProfile: preferences ? {
-          profession: preferences.role,
-          role: preferences.role,
-          industry: preferences.interests?.[0]
-        } : undefined
-      });
+      // Detect mode (companion vs professional) and apply appropriate tracking
+      const isCompanionMode = preferences?.assistantMode === 'companion' || 
+                              (!preferences?.assistantMode && !preferences?.role); // Default to companion if no role
 
-      // Log job detection
-      if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
-        logger.debug('[Infinity Agent] Job detected:', {
-          category: jobResult.category,
-          confidence: jobResult.confidence,
-          specificRole: jobResult.specificRole,
-          keywords: jobResult.keywords
+      let jobResult: any = null;
+      let lifeContextResult: any = null;
+
+      if (isCompanionMode) {
+        // Companion mode: Detect life context and interests
+        const lifeContextService = getLifeContextDetectionService();
+        const interestTracker = getInterestKnowledgeTracker();
+        lifeContextResult = lifeContextService.detectLifeContext({
+          query: filteredRequest.message,
+          conversationHistory: userContext ? [userContext] : undefined,
+          userProfile: preferences ? {
+            interests: preferences.interests,
+            familyMembers: preferences.essence?.familyMembers,
+            lifeStage: undefined // Could be extracted from preferences if stored
+          } : undefined
         });
+
+        // Log life context detection
+        if (lifeContextResult.lifeStage !== 'unknown' && lifeContextResult.lifeStage !== 'general') {
+          logger.debug('[Infinity Agent] Life context detected:', {
+            lifeStage: lifeContextResult.lifeStage,
+            lifeStageConfidence: lifeContextResult.lifeStageConfidence,
+            interests: lifeContextResult.interests,
+            interestConfidence: lifeContextResult.interestConfidence,
+            relationshipContext: lifeContextResult.relationshipContext
+          });
+        }
+      } else {
+        // Professional mode: Detect job category
+        const jobDetectionService = getJobDetectionService();
+        const jobKnowledgeTracker = getJobKnowledgeTracker();
+        jobResult = jobDetectionService.detectJob({
+          query: filteredRequest.message,
+          conversationHistory: userContext ? [userContext] : undefined,
+          userProfile: preferences ? {
+            profession: preferences.role,
+            role: preferences.role,
+            industry: preferences.interests?.[0]
+          } : undefined
+        });
+
+        // Log job detection
+        if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+          logger.debug('[Infinity Agent] Job detected:', {
+            category: jobResult.category,
+            confidence: jobResult.confidence,
+            specificRole: jobResult.specificRole,
+            keywords: jobResult.keywords
+          });
+        }
       }
 
       // Check for explicit memory commands
@@ -474,8 +508,17 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
         );
         memoryStored = true;
         
-        // Track experimental knowledge creation
-        if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+        // Track experimental knowledge creation based on mode
+        if (isCompanionMode && lifeContextResult) {
+          const interestTracker = getInterestKnowledgeTracker();
+          lifeContextResult.interests.forEach((interest: string) => {
+            interestTracker.trackExperimentalKnowledge(
+              lifeContextResult.lifeStage,
+              interest as any
+            );
+          });
+        } else if (!isCompanionMode && jobResult && jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+          const jobKnowledgeTracker = getJobKnowledgeTracker();
           jobKnowledgeTracker.trackExperimentalKnowledge(jobResult.category);
         }
       }
@@ -671,24 +714,40 @@ export const POST = withOptionalRateLimit(async (request: NextRequest) => {
       agentResponse = result.response || 'I apologize, but I was unable to process your request.';
       tokensUsed = result.tokensUsed || 0;
 
-      // Check for knowledge gaps (if job category detected)
+      // Check for knowledge gaps and track queries based on mode
       let hadKnowledgeGap = false;
-      if (jobResult.category !== 'unknown' && jobResult.category !== 'general') {
+      if (isCompanionMode && lifeContextResult) {
+        // Companion mode: Track by life context and interests
         try {
           const { needsResearch } = await import('@/lib/knowledge');
           const researchAssessment = await needsResearch(filteredRequest.message);
           hadKnowledgeGap = researchAssessment.needsResearch;
           
           // Track query with knowledge gap info
+          const interestTracker = getInterestKnowledgeTracker();
+          interestTracker.trackQuery(lifeContextResult, filteredRequest.message, hadKnowledgeGap);
+        } catch (error) {
+          // Fallback: track query without gap detection
+          const interestTracker = getInterestKnowledgeTracker();
+          interestTracker.trackQuery(lifeContextResult, filteredRequest.message, false);
+          logger.debug('[Infinity Agent] Knowledge gap detection skipped:', error);
+        }
+      } else if (!isCompanionMode && jobResult) {
+        // Professional mode: Track by job category
+        try {
+          const { needsResearch } = await import('@/lib/knowledge');
+          const researchAssessment = await needsResearch(filteredRequest.message);
+          hadKnowledgeGap = researchAssessment.needsResearch;
+          
+          // Track query with knowledge gap info
+          const jobKnowledgeTracker = getJobKnowledgeTracker();
           jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, hadKnowledgeGap);
         } catch (error) {
           // Fallback: track query without gap detection
+          const jobKnowledgeTracker = getJobKnowledgeTracker();
           jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, false);
           logger.debug('[Infinity Agent] Knowledge gap detection skipped:', error);
         }
-      } else {
-        // Track general queries too
-        jobKnowledgeTracker.trackQuery(jobResult, filteredRequest.message, false);
       }
 
       // Add memory confirmation to response if something was stored
