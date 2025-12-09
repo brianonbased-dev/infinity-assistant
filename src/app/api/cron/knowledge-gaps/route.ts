@@ -76,6 +76,12 @@ export async function GET(request: NextRequest) {
           interestTracker.trackExperimentalKnowledge(undefined, gap.category as any);
         }
 
+        // Queue for promotion evaluation (will be processed by promotion cron)
+        logger.info('[Knowledge Gap Cron] Research completed, will be evaluated for promotion', {
+          gapId: gap.gapId,
+          findings: research.findings.length
+        });
+
         results.push({
           gapId: gap.gapId,
           category: gap.category,

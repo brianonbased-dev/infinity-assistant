@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { 
@@ -28,6 +28,23 @@ interface AnalyticsData {
   };
   professional: any;
   companion: any;
+  trends: {
+    jobCategories: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+    interests: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+    experimental: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+    canonical: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+  };
+  accuracy: {
+    overall: number;
+    professional: number;
+    companion: number;
+    byCategory: Record<string, number>;
+    trend: Array<{ date: string; accuracy: number }>;
+  } | null;
+  topQueries: {
+    byCategory: Record<string, Array<{ query: string; count: number }>>;
+    global: Array<{ query: string; count: number; category: string }>;
+  };
   topCategories: any[];
   knowledgeGaps: any[];
 }
@@ -51,7 +68,7 @@ export default function KnowledgeAnalyticsPage() {
     if (authorized) {
       fetchAnalytics();
     }
-  }, [authorized, mode]);
+  }, [authorized, mode, timeframe]);
 
   const checkAuth = async () => {
     try {
@@ -193,6 +210,16 @@ export default function KnowledgeAnalyticsPage() {
                 <option value="professional">Professional</option>
                 <option value="companion">Companion</option>
               </select>
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value as any)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="day">Last 24 Hours</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="all">All Time</option>
+              </select>
               <button
                 onClick={fetchAnalytics}
                 className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
@@ -251,6 +278,63 @@ export default function KnowledgeAnalyticsPage() {
           </div>
         </div>
 
+        {/* Growth Charts */}
+        {data.trends && (data.trends.jobCategories.length > 0 || data.trends.interests.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Job Category Growth */}
+            {data.trends.jobCategories.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">Job Category Growth Over Time</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={data.trends.jobCategories}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#9ca3af', fontSize: 12 }}
+                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    />
+                    <YAxis tick={{ fill: '#9ca3af' }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                      labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="queries" stroke="#8b5cf6" name="Queries" strokeWidth={2} />
+                    <Line type="monotone" dataKey="experimental" stroke="#10b981" name="Experimental" strokeWidth={2} />
+                    <Line type="monotone" dataKey="canonical" stroke="#3b82f6" name="Canonical" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Interest Growth */}
+            {data.trends.interests.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">Interest Growth Over Time</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={data.trends.interests}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: '#9ca3af', fontSize: 12 }}
+                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    />
+                    <YAxis tick={{ fill: '#9ca3af' }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                      labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="queries" stroke="#ec4899" name="Queries" strokeWidth={2} />
+                    <Line type="monotone" dataKey="experimental" stroke="#10b981" name="Experimental" strokeWidth={2} />
+                    <Line type="monotone" dataKey="canonical" stroke="#3b82f6" name="Canonical" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Categories */}
@@ -303,6 +387,126 @@ export default function KnowledgeAnalyticsPage() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Experimental vs Canonical Trends */}
+        {data.trends && (data.trends.experimental.length > 0 || data.trends.canonical.length > 0) && (
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Experimental vs Canonical Knowledge Trends</h2>
+            <ResponsiveContainer width="100%" height={350}>
+              <AreaChart data={data.trends.experimental.map((exp, i) => ({
+                date: exp.date,
+                experimental: exp.experimental,
+                canonical: data.trends.canonical[i]?.canonical || 0
+              }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: '#9ca3af', fontSize: 12 }}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                />
+                <YAxis tick={{ fill: '#9ca3af' }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                  labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                />
+                <Legend />
+                <Area type="monotone" dataKey="experimental" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Experimental" />
+                <Area type="monotone" dataKey="canonical" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} name="Canonical" />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-400">Promotion Rate</p>
+                <p className="text-xl font-bold text-green-400">
+                  {data.summary.totalCanonicalKnowledge > 0 && data.summary.totalExperimentalKnowledge > 0
+                    ? ((data.summary.totalCanonicalKnowledge / (data.summary.totalCanonicalKnowledge + data.summary.totalExperimentalKnowledge)) * 100).toFixed(1)
+                    : '0.0'}%
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400">Total Knowledge Items</p>
+                <p className="text-xl font-bold text-blue-400">
+                  {(data.summary.totalExperimentalKnowledge + data.summary.totalCanonicalKnowledge).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Detection Accuracy Metrics */}
+        {data.accuracy && (
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Detection Accuracy Metrics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-gray-800 rounded-lg p-4">
+                <p className="text-sm text-gray-400 mb-1">Overall Accuracy</p>
+                <p className="text-3xl font-bold text-green-400">{data.accuracy.overall.toFixed(1)}%</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4">
+                <p className="text-sm text-gray-400 mb-1">Professional Mode</p>
+                <p className="text-3xl font-bold text-purple-400">{data.accuracy.professional.toFixed(1)}%</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4">
+                <p className="text-sm text-gray-400 mb-1">Companion Mode</p>
+                <p className="text-3xl font-bold text-pink-400">{data.accuracy.companion.toFixed(1)}%</p>
+              </div>
+            </div>
+            {data.accuracy.trend && data.accuracy.trend.length > 0 && (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={data.accuracy.trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: '#9ca3af', fontSize: 12 }}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  />
+                  <YAxis 
+                    domain={[0, 100]}
+                    tick={{ fill: '#9ca3af' }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px' }}
+                    labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
+                  />
+                  <Line type="monotone" dataKey="accuracy" stroke="#10b981" name="Accuracy" strokeWidth={2} dot={{ fill: '#10b981', r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        )}
+
+        {/* Top Queries Section */}
+        {data.topQueries && data.topQueries.global.length > 0 && (
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Top Queries</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left p-3 text-sm font-semibold text-gray-400">Rank</th>
+                    <th className="text-left p-3 text-sm font-semibold text-gray-400">Query</th>
+                    <th className="text-left p-3 text-sm font-semibold text-gray-400">Category</th>
+                    <th className="text-right p-3 text-sm font-semibold text-gray-400">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topQueries.global.slice(0, 20).map((query, idx) => (
+                    <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/50">
+                      <td className="p-3 text-gray-300">#{idx + 1}</td>
+                      <td className="p-3">{query.query}</td>
+                      <td className="p-3">
+                        <span className="text-xs text-gray-400">{query.category}</span>
+                      </td>
+                      <td className="p-3 text-right font-semibold">{query.count.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Knowledge Gaps */}
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">

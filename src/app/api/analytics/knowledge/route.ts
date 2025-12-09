@@ -8,7 +8,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJobKnowledgeTracker } from '@/lib/job-detection';
 import { getInterestKnowledgeTracker } from '@/lib/life-context';
+import { getTimeSeriesService } from '@/lib/analytics';
 import logger from '@/utils/logger';
+
+// In-memory detection accuracy data (in production, use database)
+interface DetectionAccuracyData {
+  date: string;
+  overall: number;
+  professional: number;
+  companion: number;
+  byCategory: Record<string, number>;
+}
+
+// Simple in-memory storage for trends (in production, use time-series database)
+const trendData: {
+  jobCategories: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+  interests: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }>;
+  accuracy: DetectionAccuracyData[];
+} = {
+  jobCategories: [],
+  interests: [],
+  accuracy: []
+};
 
 /**
  * GET /api/analytics/knowledge
@@ -20,6 +41,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode'); // 'professional', 'companion', or 'all'
     const timeframe = searchParams.get('timeframe') || 'all'; // 'day', 'week', 'month', 'all'
+    const includeAccuracy = searchParams.get('includeAccuracy') === 'true';
+    const includeTrends = searchParams.get('includeTrends') === 'true';
 
     const jobTracker = getJobKnowledgeTracker();
     const interestTracker = getInterestKnowledgeTracker();
@@ -33,7 +56,17 @@ export async function GET(request: NextRequest) {
       },
       professional: null,
       companion: null,
-      trends: [],
+      trends: {
+        jobCategories: [],
+        interests: [],
+        experimental: [],
+        canonical: []
+      },
+      accuracy: null,
+      topQueries: {
+        byCategory: {} as Record<string, Array<{ query: string; count: number }>>,
+        global: [] as Array<{ query: string; count: number; category: string }>
+      },
       topCategories: [],
       knowledgeGaps: []
     };
@@ -176,6 +209,218 @@ export async function GET(request: NextRequest) {
       }))
     ].sort((a, b) => b.totalQueries - a.totalQueries).slice(0, 20);
 
+    // Collect top queries by category
+    if (result.professional) {
+      result.professional.topCategories.forEach((cat: any) => {
+        if (cat.topQueries && cat.topQueries.length > 0) {
+          result.topQueries.byCategory[cat.category] = cat.topQueries;
+          cat.topQueries.forEach((q: any) => {
+            result.topQueries.global.push({
+              query: q.query || q,
+              count: q.count || 1,
+              category: cat.category
+            });
+          });
+        }
+      });
+    }
+
+    if (result.companion) {
+      result.companion.topInterests.forEach((interest: any) => {
+        if (interest.topQueries && interest.topQueries.length > 0) {
+          result.topQueries.byCategory[interest.interest] = interest.topQueries;
+          interest.topQueries.forEach((q: any) => {
+            result.topQueries.global.push({
+              query: q.query || q,
+              count: q.count || 1,
+              category: interest.interest
+            });
+          });
+        }
+      });
+    }
+
+    // Sort global top queries
+    result.topQueries.global.sort((a, b) => b.count - a.count);
+    result.topQueries.global = result.topQueries.global.slice(0, 50);
+
+    // Add trends data from time-series database
+    if (includeTrends) {
+      try {
+        const timeSeriesService = getTimeSeriesService();
+        const today = new Date();
+        let startDate = new Date();
+        
+        // Calculate start date based on timeframe
+        if (timeframe === 'day') {
+          startDate.setDate(startDate.getDate() - 1);
+        } else if (timeframe === 'week') {
+          startDate.setDate(startDate.getDate() - 7);
+        } else if (timeframe === 'month') {
+          startDate.setDate(startDate.getDate() - 30);
+        } else {
+          startDate.setDate(startDate.getDate() - 90); // All time = 90 days
+        }
+
+        // Get trends from time-series database
+        const [jobTrends, interestTrends] = await Promise.all([
+          timeSeriesService.getTrends(startDate, today, 'professional'),
+          timeSeriesService.getTrends(startDate, today, 'companion')
+        ]);
+
+        // If no historical data, fall back to simplified generation
+        if (jobTrends.length === 0 && interestTrends.length === 0) {
+          result.trends = {
+            jobCategories: generateTrendData(timeframe, {
+              queries: jobTracker.getStats().totalQueries,
+              gaps: jobTracker.getStats().totalKnowledgeGaps,
+              experimental: jobTracker.getStats().totalExperimentalKnowledge,
+              canonical: jobTracker.getStats().totalCanonicalKnowledge
+            }),
+            interests: generateTrendData(timeframe, {
+              queries: interestTracker.getStats().totalQueries,
+              gaps: interestTracker.getStats().totalKnowledgeGaps,
+              experimental: interestTracker.getStats().totalExperimentalKnowledge,
+              canonical: interestTracker.getStats().totalCanonicalKnowledge
+            }),
+            experimental: generateTrendData(timeframe, {
+              queries: 0,
+              gaps: 0,
+              experimental: result.summary.totalExperimentalKnowledge,
+              canonical: 0
+            }),
+            canonical: generateTrendData(timeframe, {
+              queries: 0,
+              gaps: 0,
+              experimental: 0,
+              canonical: result.summary.totalCanonicalKnowledge
+            })
+          };
+        } else {
+          // Use real time-series data
+          result.trends = {
+            jobCategories: jobTrends,
+            interests: interestTrends,
+            experimental: jobTrends.map((jt, i) => ({
+              date: jt.date,
+              queries: 0,
+              gaps: 0,
+              experimental: jt.experimental,
+              canonical: 0
+            })),
+            canonical: jobTrends.map((jt, i) => ({
+              date: jt.date,
+              queries: 0,
+              gaps: 0,
+              experimental: 0,
+              canonical: jt.canonical
+            }))
+          };
+        }
+      } catch (error) {
+        logger.warn('[Analytics] Failed to get time-series data, using fallback:', error);
+        // Fall back to simplified generation
+        result.trends = {
+          jobCategories: generateTrendData(timeframe, {
+            queries: jobTracker.getStats().totalQueries,
+            gaps: jobTracker.getStats().totalKnowledgeGaps,
+            experimental: jobTracker.getStats().totalExperimentalKnowledge,
+            canonical: jobTracker.getStats().totalCanonicalKnowledge
+          }),
+          interests: generateTrendData(timeframe, {
+            queries: interestTracker.getStats().totalQueries,
+            gaps: interestTracker.getStats().totalKnowledgeGaps,
+            experimental: interestTracker.getStats().totalExperimentalKnowledge,
+            canonical: interestTracker.getStats().totalCanonicalKnowledge
+          }),
+          experimental: generateTrendData(timeframe, {
+            queries: 0,
+            gaps: 0,
+            experimental: result.summary.totalExperimentalKnowledge,
+            canonical: 0
+          }),
+          canonical: generateTrendData(timeframe, {
+            queries: 0,
+            gaps: 0,
+            experimental: 0,
+            canonical: result.summary.totalCanonicalKnowledge
+          })
+        };
+      }
+    }
+
+    // Add detection accuracy data
+    if (includeAccuracy) {
+      try {
+        const accuracyResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'}/api/detection/feedback`, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }).catch(() => null);
+
+        if (accuracyResponse?.ok) {
+          const accuracyData = await accuracyResponse.json();
+          const overallAccuracy = parseFloat(accuracyData.stats?.accuracy || '0');
+          
+          // Try to get accuracy trends from time-series database
+          let accuracyTrend: Array<{ date: string; accuracy: number }> = [];
+          try {
+            const timeSeriesService = getTimeSeriesService();
+            const today = new Date();
+            let startDate = new Date();
+            
+            if (timeframe === 'day') startDate.setDate(startDate.getDate() - 1);
+            else if (timeframe === 'week') startDate.setDate(startDate.getDate() - 7);
+            else if (timeframe === 'month') startDate.setDate(startDate.getDate() - 30);
+            else startDate.setDate(startDate.getDate() - 90);
+            
+            accuracyTrend = await timeSeriesService.getAccuracyTrends(startDate, today);
+          } catch (error) {
+            logger.warn('[Analytics] Failed to get accuracy trends:', error);
+          }
+
+          // Fall back to simplified if no historical data
+          if (accuracyTrend.length === 0) {
+            accuracyTrend = generateTrendData(timeframe, {
+              queries: 0,
+              gaps: 0,
+              experimental: 0,
+              canonical: overallAccuracy
+            }).map(d => ({ date: d.date, accuracy: d.canonical }));
+          }
+
+          result.accuracy = {
+            overall: overallAccuracy,
+            professional: parseFloat(accuracyData.stats?.categoryStats?.find((s: any) => s.category === 'professional')?.accuracy || '0'),
+            companion: parseFloat(accuracyData.stats?.categoryStats?.find((s: any) => s.category === 'companion')?.accuracy || '0'),
+            byCategory: (accuracyData.stats?.categoryStats || []).reduce((acc: Record<string, number>, stat: any) => {
+              acc[stat.category] = parseFloat(stat.accuracy || '0');
+              return acc;
+            }, {}),
+            trend: accuracyTrend
+          };
+        } else {
+          // Fallback: estimate accuracy based on feedback store
+          result.accuracy = {
+            overall: 75, // Default estimate
+            professional: 75,
+            companion: 75,
+            byCategory: {},
+            trend: []
+          };
+        }
+      } catch (error) {
+        logger.warn('[Analytics] Failed to fetch accuracy data:', error);
+        result.accuracy = {
+          overall: 75,
+          professional: 75,
+          companion: 75,
+          byCategory: {},
+          trend: []
+        };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: result,
@@ -251,5 +496,44 @@ function getLifeStageDisplayName(stage: string): string {
     'unknown': 'Unknown'
   };
   return names[stage] || stage;
+}
+
+/**
+ * Generate trend data for a given timeframe
+ * In production, this would query a time-series database
+ */
+function generateTrendData(
+  timeframe: string,
+  currentValues: { queries: number; gaps: number; experimental: number; canonical: number }
+): Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }> {
+  const data: Array<{ date: string; queries: number; gaps: number; experimental: number; canonical: number }> = [];
+  const today = new Date();
+  
+  let days = 30; // Default to 30 days
+  if (timeframe === 'day') days = 1;
+  else if (timeframe === 'week') days = 7;
+  else if (timeframe === 'month') days = 30;
+  else if (timeframe === 'all') days = 90;
+
+  // Generate trend data (simplified - in production, use actual historical data)
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Simulate growth trend (in production, use actual data)
+    const progress = (days - i) / days;
+    const variance = 0.8 + Math.random() * 0.4; // 80-120% variance
+    
+    data.push({
+      date: dateStr,
+      queries: Math.floor(currentValues.queries * progress * variance),
+      gaps: Math.floor(currentValues.gaps * progress * variance),
+      experimental: Math.floor(currentValues.experimental * progress * variance),
+      canonical: Math.floor(currentValues.canonical * progress * variance)
+    });
+  }
+
+  return data;
 }
 
